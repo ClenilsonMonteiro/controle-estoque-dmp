@@ -1,6 +1,18 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    "Configure NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY."
+  );
+}
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 type ErrorRecord = {
   id: string;
@@ -42,10 +54,8 @@ type Page =
 
 const inputClass =
   "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-700 focus:ring-2 focus:ring-cyan-100";
-
 const buttonClass =
   "rounded-lg bg-cyan-800 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-900";
-
 const secondaryButtonClass =
   "rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50";
 
@@ -71,8 +81,7 @@ function formatNumber(value: number) {
 }
 
 function escapeCsv(value: unknown) {
-  const text = String(value ?? "");
-  return `"${text.replaceAll('"', '""')}"`;
+  return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
 
 function downloadCsv(filename: string, rows: unknown[][]) {
@@ -86,6 +95,15 @@ function downloadCsv(filename: string, rows: unknown[][]) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block text-sm font-medium text-slate-700">
+      {label}
+      {children}
+    </label>
+  );
 }
 
 function SummaryCard({
@@ -103,26 +121,51 @@ function SummaryCard({
   );
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block text-sm font-medium text-slate-700">
-      {label}
-      {children}
-    </label>
-  );
+function mapError(row: Record<string, unknown>): ErrorRecord {
+  return {
+    id: String(row.id),
+    date: String(row.date ?? ""),
+    street: String(row.street ?? ""),
+    building: String(row.building ?? ""),
+    level: String(row.level ?? ""),
+    apartment: String(row.apartment ?? ""),
+    code: String(row.code ?? ""),
+    physical: Number(row.physical ?? 0),
+    system: Number(row.system ?? 0),
+    type: String(row.type ?? ""),
+    productCodes: String(row.product_codes ?? ""),
+    adjustment: String(row.adjustment ?? ""),
+    shift: String(row.shift ?? ""),
+    responsible: String(row.responsible ?? ""),
+    status: String(row.status ?? ""),
+    notes: String(row.notes ?? ""),
+  };
+}
+
+function mapInventory(row: Record<string, unknown>): InventoryRecord {
+  return {
+    id: String(row.id),
+    date: String(row.date ?? ""),
+    counted: Number(row.counted ?? 0),
+    accurate: Number(row.accurate ?? 0),
+    movements: Number(row.movements ?? 0),
+    adjustments: Number(row.adjustments ?? 0),
+    planned: Number(row.planned ?? 0),
+    executed: Number(row.executed ?? 0),
+    notes: String(row.notes ?? ""),
+  };
 }
 
 export default function Home() {
   const [page, setPage] = useState<Page>("errors");
   const [errors, setErrors] = useState<ErrorRecord[]>([]);
   const [inventories, setInventories] = useState<InventoryRecord[]>([]);
-  const [ready, setReady] = useState(false);
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const [errorFrom, setErrorFrom] = useState("");
   const [errorTo, setErrorTo] = useState("");
@@ -159,46 +202,138 @@ export default function Home() {
   });
 
   useEffect(() => {
-    setErrorForm((current) => ({ ...current, date: localToday() }));
-setInventoryForm((current) => ({ ...current, date: localToday() }));
-    try {
-      const savedErrors = localStorage.getItem("dmp-control-errors");
-      const savedInventories = localStorage.getItem("dmp-control-inventories");
+    let active = true;
 
-      if (savedErrors) setErrors(JSON.parse(savedErrors) as ErrorRecord[]);
-      if (savedInventories)
-        setInventories(JSON.parse(savedInventories) as InventoryRecord[]);
-    } catch {
-      // Se os dados salvos não puderem ser lidos, inicia sem registros.
-    } finally {
-      setReady(true);
-    }
+    supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) setMessage(error.message);
+        setUser(
+          data.session?.user
+            ? {
+                id: data.session.user.id,
+                email: data.session.user.email,
+              }
+            : null
+        );
+        setAuthReady(true);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setMessage(
+          error instanceof Error ? error.message : "Não foi possível verificar a sessão."
+        );
+        setAuthReady(true);
+      });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(
+        session?.user
+          ? { id: session.user.id, email: session.user.email }
+          : null
+      );
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
-    if (!ready) return;
-    localStorage.setItem("dmp-control-errors", JSON.stringify(errors));
-    localStorage.setItem(
-      "dmp-control-inventories",
-      JSON.stringify(inventories)
-    );
-  }, [errors, inventories, ready]);
+    const today = localToday();
+    setErrorForm((current) => ({ ...current, date: current.date || today }));
+    setInventoryForm((current) => ({
+      ...current,
+      date: current.date || today,
+    }));
+  }, []);
 
-  function addError(event: FormEvent<HTMLFormElement>) {
+  const loadData = useCallback(async () => {
+    if (!user) return;
+
+    setLoading(true);
+    setMessage("");
+
+    const [errorsResult, inventoriesResult] = await Promise.all([
+      supabase.from("errors").select("*").order("date", { ascending: false }),
+      supabase
+        .from("inventories")
+        .select("*")
+        .order("date", { ascending: false }),
+    ]);
+
+    if (errorsResult.error || inventoriesResult.error) {
+      setMessage(
+        errorsResult.error?.message ??
+          inventoriesResult.error?.message ??
+          "Não foi possível carregar os dados."
+      );
+      setLoading(false);
+      return;
+    }
+
+    setErrors((errorsResult.data ?? []).map((row) => mapError(row)));
+    setInventories((inventoriesResult.data ?? []).map((row) => mapInventory(row)));
+    setLoading(false);
+  }, [user]);
+
+  useEffect(() => {
+    if (user) void loadData();
+    else {
+      setErrors([]);
+      setInventories([]);
+    }
+  }, [user, loadData]);
+
+  async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setMessage("");
 
-    const physical = Number(errorForm.physical);
-    const system = Number(errorForm.system);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
 
-    const newError: ErrorRecord = {
-      ...errorForm,
+    if (error) setMessage(error.message);
+  }
+
+  async function signOut() {
+    const { error } = await supabase.auth.signOut();
+    if (error) setMessage(error.message);
+  }
+
+  async function addError(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+
+    const { error } = await supabase.from("errors").insert({
       id: crypto.randomUUID(),
-      physical,
-      system,
-      productCodes: errorForm.productCodes.trim(),
-    };
+      date: errorForm.date,
+      street: errorForm.street,
+      building: errorForm.building,
+      level: errorForm.level,
+      apartment: errorForm.apartment,
+      code: errorForm.code,
+      physical: Number(errorForm.physical),
+      system: Number(errorForm.system),
+      type: errorForm.type,
+      product_codes: errorForm.productCodes.trim(),
+      adjustment: errorForm.adjustment,
+      shift: errorForm.shift,
+      responsible: errorForm.responsible,
+      status: errorForm.status,
+      notes: errorForm.notes,
+    });
 
-    setErrors((current) => [newError, ...current]);
+    if (error) {
+      setMessage(`Não foi possível salvar o erro: ${error.message}`);
+      return;
+    }
+
     setErrorForm({
       date: localToday(),
       street: "",
@@ -216,10 +351,12 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
       status: "Avaliando",
       notes: "",
     });
+    await loadData();
   }
 
-  function addInventory(event: FormEvent<HTMLFormElement>) {
+  async function addInventory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setMessage("");
 
     const counted = Number(inventoryForm.counted);
     const accurate = Number(inventoryForm.accurate);
@@ -227,27 +364,32 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
     const executed = Number(inventoryForm.executed);
 
     if (accurate > counted) {
-      alert("Itens sem divergência não podem ser maiores que os itens contados.");
+      setMessage("Itens sem divergência não podem ser maiores que os itens contados.");
       return;
     }
 
     if (executed > planned) {
-      alert("Contagens executadas não podem ser maiores que as planejadas.");
+      setMessage("Contagens executadas não podem ser maiores que as planejadas.");
       return;
     }
 
-    const newInventory: InventoryRecord = {
-      ...inventoryForm,
+    const { error } = await supabase.from("inventories").insert({
       id: crypto.randomUUID(),
+      date: inventoryForm.date,
       counted,
       accurate,
       movements: Number(inventoryForm.movements),
       adjustments: Number(inventoryForm.adjustments),
       planned,
       executed,
-    };
+      notes: inventoryForm.notes,
+    });
 
-    setInventories((current) => [newInventory, ...current]);
+    if (error) {
+      setMessage(`Não foi possível salvar o inventário: ${error.message}`);
+      return;
+    }
+
     setInventoryForm({
       date: localToday(),
       counted: "",
@@ -258,18 +400,29 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
       executed: "",
       notes: "",
     });
+    await loadData();
   }
 
-  function removeError(id: string) {
-    if (confirm("Excluir este registro de erro?")) {
-      setErrors((current) => current.filter((item) => item.id !== id));
+  async function removeError(id: string) {
+    if (!confirm("Excluir este registro de erro?")) return;
+
+    const { error } = await supabase.from("errors").delete().eq("id", id);
+    if (error) {
+      setMessage(`Não foi possível excluir o erro: ${error.message}`);
+      return;
     }
+    await loadData();
   }
 
-  function removeInventory(id: string) {
-    if (confirm("Excluir este registro de inventário?")) {
-      setInventories((current) => current.filter((item) => item.id !== id));
+  async function removeInventory(id: string) {
+    if (!confirm("Excluir este registro de inventário?")) return;
+
+    const { error } = await supabase.from("inventories").delete().eq("id", id);
+    if (error) {
+      setMessage(`Não foi possível excluir o inventário: ${error.message}`);
+      return;
     }
+    await loadData();
   }
 
   const filteredErrors = errors.filter(
@@ -301,19 +454,105 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
     { id: "base", label: "Base consolidada" },
   ];
 
+  if (!authReady) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-slate-50 p-4 text-slate-700">
+        Verificando acesso...
+      </main>
+    );
+  }
+
+  if (!user) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-slate-50 px-4 py-8 text-slate-900">
+        <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-sm font-semibold uppercase tracking-wide text-cyan-800">
+            DMP · Controle interno
+          </p>
+          <h1 className="mt-2 text-2xl font-bold">Controle de Estoque</h1>
+          <p className="mt-2 text-sm text-slate-600">
+            Entre com seu e-mail e senha autorizados para acessar os dados.
+          </p>
+
+          {message && (
+            <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-800">
+              {message}
+            </p>
+          )}
+
+          <form className="mt-5 space-y-4" onSubmit={signIn}>
+            <Field label="E-mail">
+              <input
+                className={inputClass}
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </Field>
+            <Field label="Senha">
+              <input
+                className={inputClass}
+                type="password"
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </Field>
+            <button className={`${buttonClass} w-full`} type="submit">
+              Entrar
+            </button>
+          </form>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900 sm:px-6">
       <div className="mx-auto max-w-7xl">
         <header className="rounded-2xl bg-gradient-to-r from-slate-900 to-cyan-800 p-6 text-white shadow">
-          <p className="text-sm font-semibold uppercase tracking-wide text-cyan-100">
-            DMP · Controle interno
-          </p>
-          <h1 className="mt-2 text-3xl font-bold">Controle de Estoque</h1>
-          <p className="mt-2 text-sm text-cyan-50">
-            Registro de endereçamento, divergências, inventários e indicadores
-            para acompanhamento gerencial.
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-cyan-100">
+                DMP · Controle interno
+              </p>
+              <h1 className="mt-2 text-3xl font-bold">Controle de Estoque</h1>
+              <p className="mt-2 text-sm text-cyan-50">
+                Registro de endereçamento, divergências, inventários e indicadores.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-cyan-50">{user.email}</span>
+              <button
+                className="rounded-lg border border-white/40 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10"
+                type="button"
+                onClick={() => void loadData()}
+              >
+                Atualizar
+              </button>
+              <button
+                className="rounded-lg border border-white/40 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10"
+                type="button"
+                onClick={() => void signOut()}
+              >
+                Sair
+              </button>
+            </div>
+          </div>
         </header>
+
+        {message && (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            {message}
+          </div>
+        )}
+
+        {loading && (
+          <p className="mt-3 text-sm text-slate-600">Carregando dados do Supabase...</p>
+        )}
 
         <nav className="my-5 flex flex-wrap gap-2" aria-label="Menu principal">
           {navigation.map((item) => (
@@ -321,11 +560,7 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
               key={item.id}
               type="button"
               onClick={() => setPage(item.id)}
-              className={
-                page === item.id
-                  ? buttonClass
-                  : secondaryButtonClass
-              }
+              className={page === item.id ? buttonClass : secondaryButtonClass}
             >
               {item.label}
             </button>
@@ -337,8 +572,7 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
             <section className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-xl font-bold">Novo registro de erro</h2>
               <p className="mb-5 mt-1 text-sm text-slate-500">
-                Registre uma ocorrência. A diferença entre quantidade física e
-                sistema é calculada no relatório.
+                A diferença entre quantidade física e sistema é calculada nos relatórios.
               </p>
 
               <form onSubmit={addError}>
@@ -358,13 +592,9 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
                     <input
                       className={inputClass}
                       required
-                      placeholder="Ex.: R01"
                       value={errorForm.street}
                       onChange={(event) =>
-                        setErrorForm({
-                          ...errorForm,
-                          street: event.target.value,
-                        })
+                        setErrorForm({ ...errorForm, street: event.target.value })
                       }
                     />
                   </Field>
@@ -372,13 +602,9 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
                     <input
                       className={inputClass}
                       required
-                      placeholder="Ex.: P02"
                       value={errorForm.building}
                       onChange={(event) =>
-                        setErrorForm({
-                          ...errorForm,
-                          building: event.target.value,
-                        })
+                        setErrorForm({ ...errorForm, building: event.target.value })
                       }
                     />
                   </Field>
@@ -386,7 +612,6 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
                     <input
                       className={inputClass}
                       required
-                      placeholder="Ex.: N03"
                       value={errorForm.level}
                       onChange={(event) =>
                         setErrorForm({ ...errorForm, level: event.target.value })
@@ -397,13 +622,9 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
                     <input
                       className={inputClass}
                       required
-                      placeholder="Ex.: A04"
                       value={errorForm.apartment}
                       onChange={(event) =>
-                        setErrorForm({
-                          ...errorForm,
-                          apartment: event.target.value,
-                        })
+                        setErrorForm({ ...errorForm, apartment: event.target.value })
                       }
                     />
                   </Field>
@@ -426,10 +647,7 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
                       required
                       value={errorForm.physical}
                       onChange={(event) =>
-                        setErrorForm({
-                          ...errorForm,
-                          physical: event.target.value,
-                        })
+                        setErrorForm({ ...errorForm, physical: event.target.value })
                       }
                     />
                   </Field>
@@ -442,10 +660,7 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
                       required
                       value={errorForm.system}
                       onChange={(event) =>
-                        setErrorForm({
-                          ...errorForm,
-                          system: event.target.value,
-                        })
+                        setErrorForm({ ...errorForm, system: event.target.value })
                       }
                     />
                   </Field>
@@ -544,7 +759,6 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
                   <Field label="Observações">
                     <input
                       className={inputClass}
-                      placeholder="Causa provável ou ação tomada"
                       value={errorForm.notes}
                       onChange={(event) =>
                         setErrorForm({ ...errorForm, notes: event.target.value })
@@ -552,7 +766,6 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
                     />
                   </Field>
                 </div>
-
                 <button className={`${buttonClass} mt-5`} type="submit">
                   Adicionar ocorrência
                 </button>
@@ -584,21 +797,12 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
                       <tr key={item.id}>
                         <td className="p-3">{item.date}</td>
                         <td className="p-3">
-                          {item.street} / {item.building} / {item.level} /{" "}
-                          {item.apartment}
+                          {item.street} / {item.building} / {item.level} / {item.apartment}
                         </td>
                         <td className="p-3">{item.code}</td>
                         <td className="p-3">{formatNumber(item.physical)}</td>
                         <td className="p-3">{formatNumber(item.system)}</td>
-                        <td
-                          className={`p-3 font-semibold ${
-                            item.physical - item.system === 0
-                              ? "text-emerald-700"
-                              : "text-amber-700"
-                          }`}
-                        >
-                          {formatNumber(item.physical - item.system)}
-                        </td>
+                        <td className="p-3">{formatNumber(item.physical - item.system)}</td>
                         <td className="p-3">{item.type}</td>
                         <td className="p-3">{item.adjustment}</td>
                         <td className="p-3">{item.shift}</td>
@@ -608,7 +812,7 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
                           <button
                             type="button"
                             className="font-semibold text-red-700 hover:underline"
-                            onClick={() => removeError(item.id)}
+                            onClick={() => void removeError(item.id)}
                           >
                             Excluir
                           </button>
@@ -618,7 +822,7 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
                     {errors.length === 0 && (
                       <tr>
                         <td colSpan={12} className="p-6 text-center text-slate-500">
-                          Nenhum erro registrado ainda.
+                          Nenhum erro registrado.
                         </td>
                       </tr>
                     )}
@@ -667,77 +871,45 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
               <SummaryCard label="Ocorrências" value={filteredErrors.length} />
               <SummaryCard
                 label="Pendentes"
-                value={
-                  filteredErrors.filter((item) => item.status !== "Concluído")
-                    .length
-                }
+                value={filteredErrors.filter((item) => item.status !== "Concluído").length}
               />
               <SummaryCard
                 label="Erros de endereçamento"
-                value={
-                  filteredErrors.filter((item) => item.type === "Endereçamento")
-                    .length
-                }
+                value={filteredErrors.filter((item) => item.type === "Endereçamento").length}
               />
               <SummaryCard
                 label="Ajustes realizados"
-                value={
-                  filteredErrors.filter((item) => item.adjustment === "Sim")
-                    .length
-                }
+                value={filteredErrors.filter((item) => item.adjustment === "Sim").length}
               />
             </div>
 
             <div className="grid gap-5 md:grid-cols-2">
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 className="mb-3 font-bold">Ocorrências por tipo</h3>
-                {errorTypes.map((type) => {
-                  const count = filteredErrors.filter(
-                    (item) => item.type === type
-                  ).length;
-                  return (
-                    <p
-                      key={type}
-                      className="flex justify-between border-b py-2 text-sm"
-                    >
-                      <span>{type}</span>
-                      <strong>{count}</strong>
-                    </p>
-                  );
-                })}
+                {errorTypes.map((type) => (
+                  <p key={type} className="flex justify-between border-b py-2 text-sm">
+                    <span>{type}</span>
+                    <strong>{filteredErrors.filter((item) => item.type === type).length}</strong>
+                  </p>
+                ))}
               </div>
-
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 className="mb-3 font-bold">Ocorrências por turno</h3>{["A", "B", "C", "D", "Não identificado"].map((shift) => (
-  <p
-    key={shift}
-    className="flex justify-between border-b py-2 text-sm"
-  >
-    <span>
-      {shift === "Não identificado" ? shift : `Turno ${shift}`}
-    </span>
-    <strong>
-      {filteredErrors.filter((item) => item.shift === shift).length}
-    </strong>
-  </p>
-))}
+                <h3 className="mb-3 font-bold">Ocorrências por turno</h3>
+                {["A", "B", "C", "D", "Não identificado"].map((shift) => (
+                  <p key={shift} className="flex justify-between border-b py-2 text-sm">
+                    <span>{shift === "Não identificado" ? shift : `Turno ${shift}`}</span>
+                    <strong>{filteredErrors.filter((item) => item.shift === shift).length}</strong>
+                  </p>
+                ))}
               </div>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="mb-3 font-bold">Processos por status</h3>
               {["Avaliando", "Em Andamento", "Concluído"].map((status) => (
-                <p
-                  key={status}
-                  className="flex justify-between border-b py-2 text-sm"
-                >
+                <p key={status} className="flex justify-between border-b py-2 text-sm">
                   <span>{status}</span>
-                  <strong>
-                    {
-                      filteredErrors.filter((item) => item.status === status)
-                        .length
-                    }
-                  </strong>
+                  <strong>{filteredErrors.filter((item) => item.status === status).length}</strong>
                 </p>
               ))}
             </div>
@@ -747,14 +919,10 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
         {page === "inventory" && (
           <>
             <section className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="text-xl font-bold">
-                Novo fechamento diário de inventário
-              </h2>
+              <h2 className="text-xl font-bold">Novo fechamento diário de inventário</h2>
               <p className="mb-5 mt-1 text-sm text-slate-500">
-                Informe os totais do dia. A acuracidade e o percentual de
-                execução são calculados automaticamente.
+                Informe os totais do dia. A acuracidade e a execução são calculadas automaticamente.
               </p>
-
               <form onSubmit={addInventory}>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <Field label="Data">
@@ -764,14 +932,10 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
                       required
                       value={inventoryForm.date}
                       onChange={(event) =>
-                        setInventoryForm({
-                          ...inventoryForm,
-                          date: event.target.value,
-                        })
+                        setInventoryForm({ ...inventoryForm, date: event.target.value })
                       }
                     />
                   </Field>
-
                   {[
                     ["Itens contados", "counted"],
                     ["Itens sem divergência", "accurate"],
@@ -787,9 +951,7 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
                         min="0"
                         step="1"
                         required
-                        value={
-                          inventoryForm[key as keyof typeof inventoryForm]
-                        }
+                        value={inventoryForm[key as keyof typeof inventoryForm]}
                         onChange={(event) =>
                           setInventoryForm({
                             ...inventoryForm,
@@ -799,22 +961,16 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
                       />
                     </Field>
                   ))}
-
                   <Field label="Observações">
                     <input
                       className={inputClass}
-                      placeholder="Área, causa ou comentário"
                       value={inventoryForm.notes}
                       onChange={(event) =>
-                        setInventoryForm({
-                          ...inventoryForm,
-                          notes: event.target.value,
-                        })
+                        setInventoryForm({ ...inventoryForm, notes: event.target.value })
                       }
                     />
                   </Field>
                 </div>
-
                 <button className={`${buttonClass} mt-5`} type="submit">
                   Adicionar fechamento
                 </button>
@@ -845,25 +1001,17 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
                         <td className="p-3">{item.date}</td>
                         <td className="p-3">{formatNumber(item.counted)}</td>
                         <td className="p-3">{formatNumber(item.accurate)}</td>
-                        <td className="p-3">
-                          {formatPercent(
-                            percentage(item.accurate, item.counted)
-                          )}
-                        </td>
+                        <td className="p-3">{formatPercent(percentage(item.accurate, item.counted))}</td>
                         <td className="p-3">{formatNumber(item.movements)}</td>
                         <td className="p-3">{formatNumber(item.adjustments)}</td>
                         <td className="p-3">{formatNumber(item.planned)}</td>
                         <td className="p-3">{formatNumber(item.executed)}</td>
-                        <td className="p-3">
-                          {formatPercent(
-                            percentage(item.executed, item.planned)
-                          )}
-                        </td>
+                        <td className="p-3">{formatPercent(percentage(item.executed, item.planned))}</td>
                         <td className="p-3">
                           <button
                             type="button"
                             className="font-semibold text-red-700 hover:underline"
-                            onClick={() => removeInventory(item.id)}
+                            onClick={() => void removeInventory(item.id)}
                           >
                             Excluir
                           </button>
@@ -873,7 +1021,7 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
                     {inventories.length === 0 && (
                       <tr>
                         <td colSpan={10} className="p-6 text-center text-slate-500">
-                          Nenhum inventário registrado ainda.
+                          Nenhum inventário registrado.
                         </td>
                       </tr>
                     )}
@@ -919,62 +1067,28 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
             </div>
 
             {(() => {
-              const counted = filteredInventories.reduce(
-                (sum, item) => sum + item.counted,
-                0
-              );
-              const accurate = filteredInventories.reduce(
-                (sum, item) => sum + item.accurate,
-                0
-              );
-              const planned = filteredInventories.reduce(
-                (sum, item) => sum + item.planned,
-                0
-              );
-              const executed = filteredInventories.reduce(
-                (sum, item) => sum + item.executed,
-                0
-              );
-              const movements = filteredInventories.reduce(
-                (sum, item) => sum + item.movements,
-                0
-              );
-              const adjustments = filteredInventories.reduce(
-                (sum, item) => sum + item.adjustments,
-                0
-              );
+              const counted = filteredInventories.reduce((sum, item) => sum + item.counted, 0);
+              const accurate = filteredInventories.reduce((sum, item) => sum + item.accurate, 0);
+              const planned = filteredInventories.reduce((sum, item) => sum + item.planned, 0);
+              const executed = filteredInventories.reduce((sum, item) => sum + item.executed, 0);
+              const movements = filteredInventories.reduce((sum, item) => sum + item.movements, 0);
+              const adjustments = filteredInventories.reduce((sum, item) => sum + item.adjustments, 0);
 
               return (
                 <>
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <SummaryCard
-                      label="Acuracidade do estoque"
-                      value={formatPercent(percentage(accurate, counted))}
-                    />
-                    <SummaryCard
-                      label="Execução de contagens"
-                      value={formatPercent(percentage(executed, planned))}
-                    />
-                    <SummaryCard
-                      label="Erros de movimentação"
-                      value={formatNumber(movements)}
-                    />
-                    <SummaryCard
-                      label="Ajustes de estoque"
-                      value={formatNumber(adjustments)}
-                    />
+                    <SummaryCard label="Acuracidade do estoque" value={formatPercent(percentage(accurate, counted))} />
+                    <SummaryCard label="Execução de contagens" value={formatPercent(percentage(executed, planned))} />
+                    <SummaryCard label="Erros de movimentação" value={formatNumber(movements)} />
+                    <SummaryCard label="Ajustes de estoque" value={formatNumber(adjustments)} />
                   </div>
-
                   <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <h3 className="mb-3 font-bold">Resumo do período</h3>
                     <p className="text-sm text-slate-700">
-                      {formatNumber(accurate)} itens sem divergência de{" "}
-                      {formatNumber(counted)} itens contados.{" "}
-                      {formatNumber(executed)} contagens executadas de{" "}
-                      {formatNumber(planned)} planejadas.
+                      {formatNumber(accurate)} itens sem divergência de {formatNumber(counted)} contados.{" "}
+                      {formatNumber(executed)} contagens executadas de {formatNumber(planned)} planejadas.
                     </p>
                   </div>
-
                   <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <h3 className="mb-3 font-bold">Acompanhamento por dia</h3>
                     <div className="overflow-x-auto">
@@ -996,26 +1110,15 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
                               <td className="p-3">{item.date}</td>
                               <td className="p-3">{item.counted}</td>
                               <td className="p-3">{item.accurate}</td>
-                              <td className="p-3">
-                                {formatPercent(
-                                  percentage(item.accurate, item.counted)
-                                )}
-                              </td>
+                              <td className="p-3">{formatPercent(percentage(item.accurate, item.counted))}</td>
                               <td className="p-3">{item.planned}</td>
                               <td className="p-3">{item.executed}</td>
-                              <td className="p-3">
-                                {formatPercent(
-                                  percentage(item.executed, item.planned)
-                                )}
-                              </td>
+                              <td className="p-3">{formatPercent(percentage(item.executed, item.planned))}</td>
                             </tr>
                           ))}
                           {filteredInventories.length === 0 && (
                             <tr>
-                              <td
-                                colSpan={7}
-                                className="p-6 text-center text-slate-500"
-                              >
+                              <td colSpan={7} className="p-6 text-center text-slate-500">
                                 Sem dados para o período selecionado.
                               </td>
                             </tr>
@@ -1032,59 +1135,27 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
 
         {page === "base" && (
           <section className="space-y-5">
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-              Os registros são armazenados localmente neste navegador e
-              computador. Use os botões de exportação para baixar cópias em CSV.
+            <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-sm text-cyan-900">
+              Os registros desta tela são carregados do banco Supabase e compartilhados com os usuários autorizados.
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-bold">Base consolidada de erros</h2>
-                  <p className="text-sm text-slate-500">
-                    Uma linha para cada ocorrência registrada.
-                  </p>
+                  <p className="text-sm text-slate-500">Uma linha para cada ocorrência registrada.</p>
                 </div>
                 <button
                   className={secondaryButtonClass}
                   type="button"
                   onClick={() =>
                     downloadCsv("base-erros-dmp.csv", [
-                      [
-                        "Data",
-                        "Rua",
-                        "Prédio",
-                        "Nível",
-                        "Apartamento",
-                        "Código",
-                        "Físico",
-                        "Sistema",
-                        "Diferença",
-                        "Tipo",
-                        "Produtos no endereço",
-                        "Ajuste",
-                        "Turno",
-                        "Responsável",
-                        "Status",
-                        "Observações",
-                      ],
+                      ["Data", "Rua", "Prédio", "Nível", "Apartamento", "Código", "Físico", "Sistema", "Diferença", "Tipo", "Produtos no endereço", "Ajuste", "Turno", "Responsável", "Status", "Observações"],
                       ...errors.map((item) => [
-                        item.date,
-                        item.street,
-                        item.building,
-                        item.level,
-                        item.apartment,
-                        item.code,
-                        item.physical,
-                        item.system,
-                        item.physical - item.system,
-                        item.type,
-                        item.productCodes,
-                        item.adjustment,
-                        item.shift,
-                        item.responsible,
-                        item.status,
-                        item.notes,
+                        item.date, item.street, item.building, item.level, item.apartment,
+                        item.code, item.physical, item.system, item.physical - item.system,
+                        item.type, item.productCodes, item.adjustment, item.shift,
+                        item.responsible, item.status, item.notes,
                       ]),
                     ])
                   }
@@ -1092,46 +1163,31 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
                   Exportar erros CSV
                 </button>
               </div>
-
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1000px] text-left text-sm">
                   <thead className="bg-slate-100 text-xs uppercase text-slate-600">
                     <tr>
-                      <th className="p-3">Data</th>
-                      <th className="p-3">Rua</th>
-                      <th className="p-3">Prédio</th>
-                      <th className="p-3">Nível</th>
-                      <th className="p-3">Apartamento</th>
-                      <th className="p-3">Código</th>
-                      <th className="p-3">Físico</th>
-                      <th className="p-3">Sistema</th>
-                      <th className="p-3">Diferença</th>
-                      <th className="p-3">Tipo</th>
+                      <th className="p-3">Data</th><th className="p-3">Rua</th>
+                      <th className="p-3">Prédio</th><th className="p-3">Nível</th>
+                      <th className="p-3">Apartamento</th><th className="p-3">Código</th>
+                      <th className="p-3">Físico</th><th className="p-3">Sistema</th>
+                      <th className="p-3">Diferença</th><th className="p-3">Tipo</th>
                       <th className="p-3">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {errors.map((item) => (
                       <tr key={item.id}>
-                        <td className="p-3">{item.date}</td>
-                        <td className="p-3">{item.street}</td>
-                        <td className="p-3">{item.building}</td>
-                        <td className="p-3">{item.level}</td>
-                        <td className="p-3">{item.apartment}</td>
-                        <td className="p-3">{item.code}</td>
-                        <td className="p-3">{item.physical}</td>
-                        <td className="p-3">{item.system}</td>
-                        <td className="p-3">{item.physical - item.system}</td>
-                        <td className="p-3">{item.type}</td>
+                        <td className="p-3">{item.date}</td><td className="p-3">{item.street}</td>
+                        <td className="p-3">{item.building}</td><td className="p-3">{item.level}</td>
+                        <td className="p-3">{item.apartment}</td><td className="p-3">{item.code}</td>
+                        <td className="p-3">{item.physical}</td><td className="p-3">{item.system}</td>
+                        <td className="p-3">{item.physical - item.system}</td><td className="p-3">{item.type}</td>
                         <td className="p-3">{item.status}</td>
                       </tr>
                     ))}
                     {errors.length === 0 && (
-                      <tr>
-                        <td colSpan={11} className="p-6 text-center text-slate-500">
-                          Nenhum erro registrado.
-                        </td>
-                      </tr>
+                      <tr><td colSpan={11} className="p-6 text-center text-slate-500">Nenhum erro registrado.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -1141,41 +1197,20 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-bold">
-                    Base consolidada de inventário
-                  </h2>
-                  <p className="text-sm text-slate-500">
-                    Fechamentos diários e indicadores de contagem.
-                  </p>
+                  <h2 className="text-xl font-bold">Base consolidada de inventário</h2>
+                  <p className="text-sm text-slate-500">Fechamentos diários e indicadores de contagem.</p>
                 </div>
                 <button
                   className={secondaryButtonClass}
                   type="button"
                   onClick={() =>
                     downloadCsv("base-inventario-dmp.csv", [
-                      [
-                        "Data",
-                        "Itens contados",
-                        "Sem divergência",
-                        "Acuracidade",
-                        "Erros movimentação",
-                        "Ajustes",
-                        "Planejadas",
-                        "Executadas",
-                        "Execução",
-                        "Observações",
-                      ],
+                      ["Data", "Itens contados", "Sem divergência", "Acuracidade", "Erros movimentação", "Ajustes", "Planejadas", "Executadas", "Execução", "Observações"],
                       ...inventories.map((item) => [
-                        item.date,
-                        item.counted,
-                        item.accurate,
+                        item.date, item.counted, item.accurate,
                         formatPercent(percentage(item.accurate, item.counted)),
-                        item.movements,
-                        item.adjustments,
-                        item.planned,
-                        item.executed,
-                        formatPercent(percentage(item.executed, item.planned)),
-                        item.notes,
+                        item.movements, item.adjustments, item.planned, item.executed,
+                        formatPercent(percentage(item.executed, item.planned)), item.notes,
                       ]),
                     ])
                   }
@@ -1183,46 +1218,30 @@ setInventoryForm((current) => ({ ...current, date: localToday() }));
                   Exportar inventário CSV
                 </button>
               </div>
-
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[850px] text-left text-sm">
                   <thead className="bg-slate-100 text-xs uppercase text-slate-600">
                     <tr>
-                      <th className="p-3">Data</th>
-                      <th className="p-3">Contados</th>
-                      <th className="p-3">Sem divergência</th>
-                      <th className="p-3">Acuracidade</th>
-                      <th className="p-3">Erros movimentação</th>
-                      <th className="p-3">Ajustes</th>
-                      <th className="p-3">Planejadas</th>
-                      <th className="p-3">Executadas</th>
+                      <th className="p-3">Data</th><th className="p-3">Contados</th>
+                      <th className="p-3">Sem divergência</th><th className="p-3">Acuracidade</th>
+                      <th className="p-3">Erros movimentação</th><th className="p-3">Ajustes</th>
+                      <th className="p-3">Planejadas</th><th className="p-3">Executadas</th>
                       <th className="p-3">Execução</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {inventories.map((item) => (
                       <tr key={item.id}>
-                        <td className="p-3">{item.date}</td>
-                        <td className="p-3">{item.counted}</td>
+                        <td className="p-3">{item.date}</td><td className="p-3">{item.counted}</td>
                         <td className="p-3">{item.accurate}</td>
-                        <td className="p-3">
-                          {formatPercent(percentage(item.accurate, item.counted))}
-                        </td>
-                        <td className="p-3">{item.movements}</td>
-                        <td className="p-3">{item.adjustments}</td>
-                        <td className="p-3">{item.planned}</td>
-                        <td className="p-3">{item.executed}</td>
-                        <td className="p-3">
-                          {formatPercent(percentage(item.executed, item.planned))}
-                        </td>
+                        <td className="p-3">{formatPercent(percentage(item.accurate, item.counted))}</td>
+                        <td className="p-3">{item.movements}</td><td className="p-3">{item.adjustments}</td>
+                        <td className="p-3">{item.planned}</td><td className="p-3">{item.executed}</td>
+                        <td className="p-3">{formatPercent(percentage(item.executed, item.planned))}</td>
                       </tr>
                     ))}
                     {inventories.length === 0 && (
-                      <tr>
-                        <td colSpan={9} className="p-6 text-center text-slate-500">
-                          Nenhum inventário registrado.
-                        </td>
-                      </tr>
+                      <tr><td colSpan={9} className="p-6 text-center text-slate-500">Nenhum inventário registrado.</td></tr>
                     )}
                   </tbody>
                 </table>
