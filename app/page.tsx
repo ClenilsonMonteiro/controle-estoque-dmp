@@ -166,6 +166,8 @@ export default function Home() {
   const [message, setMessage] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isRegistering, setIsRegistering] = useState(false);
 
   const [errorFrom, setErrorFrom] = useState("");
   const [errorTo, setErrorTo] = useState("");
@@ -299,6 +301,41 @@ export default function Home() {
     });
 
     if (error) setMessage(error.message);
+  }
+
+  async function signUp(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+
+    if (password.length < 6) {
+      setMessage("A senha precisa ter pelo menos 6 caracteres.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setMessage("As senhas não coincidem.");
+      return;
+    }
+
+    const { error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        emailRedirectTo: window.location.origin,
+      },
+    });
+
+    if (error) {
+      setMessage(`Não foi possível criar a conta: ${error.message}`);
+      return;
+    }
+
+    setIsRegistering(false);
+    setPassword("");
+    setConfirmPassword("");
+    setMessage(
+      "Cadastro criado. Se for solicitada a confirmação, confira seu e-mail e depois entre."
+    );
   }
 
   async function signOut() {
@@ -471,7 +508,9 @@ export default function Home() {
           </p>
           <h1 className="mt-2 text-2xl font-bold">Controle de Estoque</h1>
           <p className="mt-2 text-sm text-slate-600">
-            Entre com seu e-mail e senha autorizados para acessar os dados.
+            {isRegistering
+              ? "Preencha seus dados para criar uma conta e acessar o Controle de Estoque."
+              : "Entre com seu e-mail e senha. Ainda não tem cadastro? Use a opção abaixo para criar sua conta."}
           </p>
 
           {message && (
@@ -480,7 +519,17 @@ export default function Home() {
             </p>
           )}
 
-          <form className="mt-5 space-y-4" onSubmit={signIn}>
+          {isRegistering && (
+            <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              O cadastro está aberto. Como novos usuários recebem acesso automaticamente,
+              compartilhe o endereço do sistema somente com pessoas autorizadas.
+            </p>
+          )}
+
+          <form
+            className="mt-5 space-y-4"
+            onSubmit={isRegistering ? signUp : signIn}
+          >
             <Field label="E-mail">
               <input
                 className={inputClass}
@@ -501,10 +550,38 @@ export default function Home() {
                 onChange={(event) => setPassword(event.target.value)}
               />
             </Field>
+            {isRegistering && (
+              <Field label="Confirme a senha">
+                <input
+                  className={inputClass}
+                  type="password"
+                  required
+                  minLength={6}
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                />
+              </Field>
+            )}
             <button className={`${buttonClass} w-full`} type="submit">
-              Entrar
+              {isRegistering ? "Criar cadastro" : "Entrar"}
             </button>
           </form>
+
+          <button
+            className={`${secondaryButtonClass} mt-4 w-full`}
+            type="button"
+            onClick={() => {
+              setIsRegistering((current) => !current);
+              setMessage("");
+              setPassword("");
+              setConfirmPassword("");
+            }}
+          >
+            {isRegistering
+              ? "Já tem cadastro? Voltar para entrar"
+              : "Ainda não tem cadastro? Criar cadastro"}
+          </button>
         </section>
       </main>
     );
@@ -1257,5 +1334,6 @@ export default function Home() {
     </main>
   );
 }
+
 
 
