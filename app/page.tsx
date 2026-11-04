@@ -126,13 +126,38 @@ function MetricChart({
   data,
   color = "bg-cyan-700",
   formatValue = formatNumber,
+  chartType = "column",
 }: {
   title: string;
   data: { label: string; value: number }[];
   color?: string;
   formatValue?: (value: number) => string;
+  chartType?: "line" | "column";
 }) {
-  const maxValue = Math.max(...data.map((item) => Math.abs(item.value)), 0);
+  const width = 720;
+  const height = 280;
+  const left = 58;
+  const right = 18;
+  const top = 18;
+  const bottom = 48;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+  const maxValue = Math.max(...data.map((item) => Math.abs(item.value)), 0) || 1;
+  const colorClass = color.replace("bg-", "text-");
+  const labelStep = Math.max(1, Math.ceil(data.length / 8));
+
+  const pointX = (index: number) =>
+    data.length === 1
+      ? left + plotWidth / 2
+      : left + (index / (data.length - 1)) * plotWidth;
+  const pointY = (value: number) =>
+    top + plotHeight - (Math.abs(value) / maxValue) * plotHeight;
+
+  const linePath = data
+    .map((item, index) =>
+      `${index === 0 ? "M" : "L"} ${pointX(index)} ${pointY(item.value)}`
+    )
+    .join(" ");
 
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -140,25 +165,104 @@ function MetricChart({
       {data.length === 0 ? (
         <p className="py-4 text-sm text-slate-500">Sem dados para os filtros selecionados.</p>
       ) : (
-        <div className="space-y-3">
-          {data.map((item, index) => {
-            const width = maxValue ? (Math.abs(item.value) / maxValue) * 100 : 0;
+        <svg
+          className={`h-64 w-full ${colorClass}`}
+          viewBox={`0 0 ${width} ${height}`}
+          role="img"
+          aria-label={title}
+        >
+          {[0, 1, 2, 3, 4].map((step) => {
+            const y = top + plotHeight - (step / 4) * plotHeight;
+            const value = (maxValue * step) / 4;
 
             return (
-              <div key={`${item.label}-${index}`} className="grid grid-cols-[minmax(5rem,8rem)_1fr_auto] items-center gap-3">
-                <span className="truncate text-xs text-slate-600" title={item.label}>
-                  {item.label}
-                </span>
-                <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-                  <div className={`h-full rounded-full ${color}`} style={{ width: `${width}%` }} />
-                </div>
-                <strong className="min-w-12 text-right text-xs text-slate-700">
-                  {formatValue(item.value)}
-                </strong>
-              </div>
+              <g key={step}>
+                <line
+                  x1={left}
+                  x2={width - right}
+                  y1={y}
+                  y2={y}
+                  stroke="#e2e8f0"
+                  strokeDasharray={step === 0 ? undefined : "4 4"}
+                />
+                <text
+                  x={left - 8}
+                  y={y + 4}
+                  textAnchor="end"
+                  fontSize="11"
+                  fill="#64748b"
+                >
+                  {formatValue(value)}
+                </text>
+              </g>
             );
           })}
-        </div>
+
+          {chartType === "line" ? (
+            <>
+              {data.length > 1 && (
+                <path
+                  d={linePath}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              )}
+              {data.map((item, index) => (
+                <circle
+                  key={`${item.label}-${index}`}
+                  cx={pointX(index)}
+                  cy={pointY(item.value)}
+                  r="4"
+                  fill="currentColor"
+                >
+                  <title>{`${item.label}: ${formatValue(item.value)}`}</title>
+                </circle>
+              ))}
+            </>
+          ) : (
+            data.map((item, index) => {
+              const slotWidth = plotWidth / data.length;
+              const barWidth = Math.min(44, slotWidth * 0.58);
+              const barHeight = (Math.abs(item.value) / maxValue) * plotHeight;
+              const x = left + index * slotWidth + (slotWidth - barWidth) / 2;
+              const y = top + plotHeight - barHeight;
+
+              return (
+                <rect
+                  key={`${item.label}-${index}`}
+                  x={x}
+                  y={y}
+                  width={barWidth}
+                  height={Math.max(barHeight, 1)}
+                  rx="3"
+                  fill="currentColor"
+                >
+                  <title>{`${item.label}: ${formatValue(item.value)}`}</title>
+                </rect>
+              );
+            })
+          )}
+
+          {data.map((item, index) =>
+            index % labelStep === 0 || index === data.length - 1 ? (
+              <text
+                key={`${item.label}-label-${index}`}
+                x={chartType === "column"
+                  ? left + (index + 0.5) * (plotWidth / data.length)
+                  : pointX(index)}
+                y={height - 12}
+                textAnchor="middle"
+                fontSize="11"
+                fill="#64748b"
+              >
+                {item.label.length > 10 ? item.label.slice(5) : item.label}
+              </text>
+            ) : null
+          )}
+        </svg>
       )}
     </article>
   );
@@ -573,6 +677,40 @@ export default function Home() {
       (!inventoryMinExecution ||
         percentage(item.executed, item.planned) >= Number(inventoryMinExecution))
   );
+
+  const errorsByDate = Array.from(
+    filteredErrors.reduce((byDate, item) => {
+      byDate.set(item.date, (byDate.get(item.date) ?? 0) + 1);
+      return byDate;
+    }, new Map<string, number>()),
+    ([label, value]) => ({ label, value })
+  ).sort((a, b) => a.label.localeCompare(b.label));
+
+  const inventoryByDate = Array.from(
+    filteredInventories.reduce((byDate, item) => {
+      const totals = byDate.get(item.date) ?? {
+        counted: 0,
+        accurate: 0,
+        movements: 0,
+        planned: 0,
+        executed: 0,
+      };
+      totals.counted += item.counted;
+      totals.accurate += item.accurate;
+      totals.movements += item.movements;
+      totals.planned += item.planned;
+      totals.executed += item.executed;
+      byDate.set(item.date, totals);
+      return byDate;
+    }, new Map<string, {
+      counted: number;
+      accurate: number;
+      movements: number;
+      planned: number;
+      executed: number;
+    }>()),
+    ([date, totals]) => ({ date, ...totals })
+  ).sort((a, b) => a.date.localeCompare(b.date));
 
   const errorTypes = [
     "Sistema",
@@ -1189,6 +1327,11 @@ export default function Home() {
 
             <div className="grid gap-5 md:grid-cols-2">
               <MetricChart
+                title="Todas as ocorrências por dia"
+                data={errorsByDate}
+                chartType="line"
+              />
+              <MetricChart
                 title="Ocorrências por tipo"
                 data={errorTypes.map((type) => ({
                   label: type,
@@ -1218,21 +1361,6 @@ export default function Home() {
                   value: filteredErrors.filter((item) => item.adjustment === adjustment).length,
                 }))}
                 color="bg-emerald-600"
-              />
-              <MetricChart
-                title="Quantidade física por ocorrência"
-                data={filteredErrors.slice(0, 10).map((item) => ({
-                  label: `${item.date} · ${item.code}`,
-                  value: item.physical,
-                }))}
-              />
-              <MetricChart
-                title="Quantidade no sistema por ocorrência"
-                data={filteredErrors.slice(0, 10).map((item) => ({
-                  label: `${item.date} · ${item.code}`,
-                  value: item.system,
-                }))}
-                color="bg-violet-600"
               />
               <MetricChart
                 title="Diferença física × sistema"
@@ -1462,45 +1590,33 @@ export default function Home() {
                   </div>
                   <div className="grid gap-5 md:grid-cols-2">
                     <MetricChart
-                      title="Itens contados por dia"
-                      data={filteredInventories.map((item) => ({ label: item.date, value: item.counted }))}
-                    />
-                    <MetricChart
-                      title="Itens sem divergência por dia"
-                      data={filteredInventories.map((item) => ({ label: item.date, value: item.accurate }))}
-                      color="bg-emerald-600"
-                    />
-                    <MetricChart
-                      title="Acuracidade por dia"
-                      data={filteredInventories.map((item) => ({ label: item.date, value: percentage(item.accurate, item.counted) }))}
+                      title="Acuracidade do estoque por dia"
+                      data={inventoryByDate.map((item) => ({
+                        label: item.date,
+                        value: percentage(item.accurate, item.counted),
+                      }))}
                       color="bg-indigo-600"
                       formatValue={formatPercent}
+                      chartType="line"
                     />
                     <MetricChart
                       title="Erros de movimentação por dia"
-                      data={filteredInventories.map((item) => ({ label: item.date, value: item.movements }))}
+                      data={inventoryByDate.map((item) => ({
+                        label: item.date,
+                        value: item.movements,
+                      }))}
                       color="bg-rose-600"
-                    />
-                    <MetricChart
-                      title="Ajustes de estoque por dia"
-                      data={filteredInventories.map((item) => ({ label: item.date, value: item.adjustments }))}
-                      color="bg-amber-500"
-                    />
-                    <MetricChart
-                      title="Contagens planejadas por dia"
-                      data={filteredInventories.map((item) => ({ label: item.date, value: item.planned }))}
-                      color="bg-sky-600"
-                    />
-                    <MetricChart
-                      title="Contagens executadas por dia"
-                      data={filteredInventories.map((item) => ({ label: item.date, value: item.executed }))}
-                      color="bg-teal-600"
+                      chartType="column"
                     />
                     <MetricChart
                       title="Execução de contagens por dia"
-                      data={filteredInventories.map((item) => ({ label: item.date, value: percentage(item.executed, item.planned) }))}
+                      data={inventoryByDate.map((item) => ({
+                        label: item.date,
+                        value: percentage(item.executed, item.planned),
+                      }))}
                       color="bg-violet-600"
                       formatValue={formatPercent}
+                      chartType="line"
                     />
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -1678,6 +1794,7 @@ export default function Home() {
     </main>
   );
 }
+
 
 
 
