@@ -159,6 +159,7 @@ function mapInventory(row: Record<string, unknown>): InventoryRecord {
 export default function Home() {
   const [page, setPage] = useState<Page>("errors");
   const [errors, setErrors] = useState<ErrorRecord[]>([]);
+  const [editingError, setEditingError] = useState<ErrorRecord | null>(null);
   const [inventories, setInventories] = useState<InventoryRecord[]>([]);
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -437,6 +438,43 @@ export default function Home() {
       executed: "",
       notes: "",
     });
+    await loadData();
+  }
+
+  async function saveErrorEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingError) return;
+
+    setMessage("");
+
+    const { error } = await supabase
+      .from("errors")
+      .update({
+        date: editingError.date,
+        street: editingError.street,
+        building: editingError.building,
+        level: editingError.level,
+        apartment: editingError.apartment,
+        code: editingError.code,
+        physical: editingError.physical,
+        system: editingError.system,
+        type: editingError.type,
+        product_codes: editingError.productCodes.trim(),
+        adjustment: editingError.adjustment,
+        shift: editingError.shift,
+        responsible: editingError.responsible,
+        status: editingError.status,
+        notes: editingError.notes,
+      })
+      .eq("id", editingError.id);
+
+    if (error) {
+      setMessage(`Não foi possível atualizar o erro: ${error.message}`);
+      return;
+    }
+
+    setEditingError(null);
+    setMessage("Registro de erro atualizado.");
     await loadData();
   }
 
@@ -849,6 +887,96 @@ export default function Home() {
               </form>
             </section>
 
+            {editingError && (
+              <section className="mb-5 rounded-2xl border border-cyan-200 bg-white p-5 shadow-sm">
+                <h2 className="mb-4 text-xl font-bold">Editar registro de erro</h2>
+                <form onSubmit={saveErrorEdit}>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <Field label="Data">
+                      <input className={inputClass} type="date" required value={editingError.date}
+                        onChange={(event) => setEditingError({ ...editingError, date: event.target.value })} />
+                    </Field>
+                    <Field label="Rua">
+                      <input className={inputClass} required value={editingError.street}
+                        onChange={(event) => setEditingError({ ...editingError, street: event.target.value })} />
+                    </Field>
+                    <Field label="Prédio">
+                      <input className={inputClass} required value={editingError.building}
+                        onChange={(event) => setEditingError({ ...editingError, building: event.target.value })} />
+                    </Field>
+                    <Field label="Nível">
+                      <input className={inputClass} required value={editingError.level}
+                        onChange={(event) => setEditingError({ ...editingError, level: event.target.value })} />
+                    </Field>
+                    <Field label="Apartamento">
+                      <input className={inputClass} required value={editingError.apartment}
+                        onChange={(event) => setEditingError({ ...editingError, apartment: event.target.value })} />
+                    </Field>
+                    <Field label="Código do produto">
+                      <input className={inputClass} required value={editingError.code}
+                        onChange={(event) => setEditingError({ ...editingError, code: event.target.value })} />
+                    </Field>
+                    <Field label="Quantidade física">
+                      <input className={inputClass} type="number" min="0" step="any" required value={editingError.physical}
+                        onChange={(event) => setEditingError({ ...editingError, physical: Number(event.target.value) })} />
+                    </Field>
+                    <Field label="Quantidade no sistema">
+                      <input className={inputClass} type="number" min="0" step="any" required value={editingError.system}
+                        onChange={(event) => setEditingError({ ...editingError, system: Number(event.target.value) })} />
+                    </Field>
+                    <Field label="Tipo de erro">
+                      <select className={inputClass} required value={editingError.type}
+                        onChange={(event) => setEditingError({ ...editingError, type: event.target.value })}>
+                        <option value="">Selecione</option>
+                        {errorTypes.map((type) => <option key={type}>{type}</option>)}
+                      </select>
+                    </Field>
+                    {editingError.type === "Múltiplos produtos" && (
+                      <Field label="Códigos dos produtos no endereço">
+                        <input className={inputClass} required placeholder="Separe os códigos por vírgula"
+                          value={editingError.productCodes}
+                          onChange={(event) => setEditingError({ ...editingError, productCodes: event.target.value })} />
+                      </Field>
+                    )}
+                    <Field label="Ajuste no sistema?">
+                      <select className={inputClass} value={editingError.adjustment}
+                        onChange={(event) => setEditingError({ ...editingError, adjustment: event.target.value })}>
+                        <option>Não</option><option>Sim</option><option>Pendente</option>
+                      </select>
+                    </Field>
+                    <Field label="Turno">
+                      <select className={inputClass} required value={editingError.shift}
+                        onChange={(event) => setEditingError({ ...editingError, shift: event.target.value })}>
+                        <option value="">Selecione</option>
+                        <option>A</option><option>B</option><option>C</option><option>D</option>
+                        <option value="Não identificado">Não identificado</option>
+                      </select>
+                    </Field>
+                    <Field label="Nome do responsável">
+                      <input className={inputClass} required value={editingError.responsible}
+                        onChange={(event) => setEditingError({ ...editingError, responsible: event.target.value })} />
+                    </Field>
+                    <Field label="Status do processo">
+                      <select className={inputClass} value={editingError.status}
+                        onChange={(event) => setEditingError({ ...editingError, status: event.target.value })}>
+                        <option>Avaliando</option><option>Em Andamento</option><option>Concluído</option>
+                      </select>
+                    </Field>
+                    <Field label="Observações">
+                      <input className={inputClass} value={editingError.notes}
+                        onChange={(event) => setEditingError({ ...editingError, notes: event.target.value })} />
+                    </Field>
+                  </div>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <button className={buttonClass} type="submit">Salvar alterações</button>
+                    <button className={secondaryButtonClass} type="button" onClick={() => setEditingError(null)}>
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              </section>
+            )}
+
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="mb-4 text-xl font-bold">Registros de erros</h2>
               <div className="overflow-x-auto">
@@ -886,13 +1014,25 @@ export default function Home() {
                         <td className="p-3">{item.responsible}</td>
                         <td className="p-3">{item.status}</td>
                         <td className="p-3">
-                          <button
-                            type="button"
-                            className="font-semibold text-red-700 hover:underline"
-                            onClick={() => void removeError(item.id)}
-                          >
-                            Excluir
-                          </button>
+                          <div className="flex flex-col items-start gap-2">
+                            <button
+                              type="button"
+                              className="font-semibold text-cyan-800 hover:underline"
+                              onClick={() => {
+                                setMessage("");
+                                setEditingError({ ...item });
+                              }}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              className="font-semibold text-red-700 hover:underline"
+                              onClick={() => void removeError(item.id)}
+                            >
+                              Excluir
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1334,6 +1474,7 @@ export default function Home() {
     </main>
   );
 }
+
 
 
 
