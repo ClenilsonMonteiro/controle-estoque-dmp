@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -33,6 +39,24 @@ type ErrorRecord = {
   notes: string;
 };
 
+type ErrorForm = {
+  date: string;
+  street: string;
+  building: string;
+  level: string;
+  apartment: string;
+  code: string;
+  physical: string;
+  system: string;
+  type: string;
+  productCodes: string;
+  adjustment: string;
+  shift: string;
+  responsible: string;
+  status: string;
+  notes: string;
+};
+
 type InventoryRecord = {
   id: string;
   date: string;
@@ -42,6 +66,17 @@ type InventoryRecord = {
   adjustments: number;
   planned: number;
   executed: number;
+  notes: string;
+};
+
+type InventoryForm = {
+  date: string;
+  counted: string;
+  accurate: string;
+  movements: string;
+  adjustments: string;
+  planned: string;
+  executed: string;
   notes: string;
 };
 
@@ -58,6 +93,44 @@ const buttonClass =
   "rounded-lg bg-cyan-800 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-900";
 const secondaryButtonClass =
   "rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50";
+
+const errorTypes = [
+  "Sistema",
+  "Endereçamento",
+  "Pessoa/Processo",
+  "Movimentação",
+  "Múltiplos produtos",
+  "Outros",
+];
+
+const emptyErrorForm: ErrorForm = {
+  date: "",
+  street: "",
+  building: "",
+  level: "",
+  apartment: "",
+  code: "",
+  physical: "",
+  system: "",
+  type: "",
+  productCodes: "",
+  adjustment: "Não",
+  shift: "",
+  responsible: "",
+  status: "Avaliando",
+  notes: "",
+};
+
+const emptyInventoryForm: InventoryForm = {
+  date: "",
+  counted: "",
+  accurate: "",
+  movements: "",
+  adjustments: "",
+  planned: "",
+  executed: "",
+  notes: "",
+};
 
 function localToday() {
   const date = new Date();
@@ -97,7 +170,13 @@ function downloadCsv(filename: string, rows: unknown[][]) {
   URL.revokeObjectURL(url);
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
   return (
     <label className="block text-sm font-medium text-slate-700">
       {label}
@@ -135,23 +214,24 @@ function MetricChart({
   chartType?: "line" | "column";
 }) {
   const width = 720;
-  const height = 280;
-  const left = 58;
-  const right = 18;
-  const top = 18;
-  const bottom = 48;
+  const height = 310;
+  const left = 72;
+  const right = 22;
+  const top = 42;
+  const bottom = 54;
   const plotWidth = width - left - right;
   const plotHeight = height - top - bottom;
-  const maxValue = Math.max(...data.map((item) => Math.abs(item.value)), 0) || 1;
+  const maxValue = Math.max(...data.map((item) => item.value), 0) || 1;
   const colorClass = color.replace("bg-", "text-");
-  const labelStep = Math.max(1, Math.ceil(data.length / 8));
+  const dateLabelStep = Math.max(1, Math.ceil(data.length / 8));
 
   const pointX = (index: number) =>
     data.length === 1
       ? left + plotWidth / 2
       : left + (index / (data.length - 1)) * plotWidth;
+
   const pointY = (value: number) =>
-    top + plotHeight - (Math.abs(value) / maxValue) * plotHeight;
+    top + plotHeight - (value / maxValue) * plotHeight;
 
   const linePath = data
     .map((item, index) =>
@@ -160,109 +240,151 @@ function MetricChart({
     .join(" ");
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="mb-4 font-bold text-slate-800">{title}</h3>
-      {data.length === 0 ? (
-        <p className="py-4 text-sm text-slate-500">Sem dados para os filtros selecionados.</p>
-      ) : (
-        <svg
-          className={`h-64 w-full ${colorClass}`}
-          viewBox={`0 0 ${width} ${height}`}
-          role="img"
-          aria-label={title}
-        >
-          {[0, 1, 2, 3, 4].map((step) => {
-            const y = top + plotHeight - (step / 4) * plotHeight;
-            const value = (maxValue * step) / 4;
+    <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 className="mb-3 font-bold text-slate-800">{title}</h3>
 
-            return (
-              <g key={step}>
-                <line
-                  x1={left}
-                  x2={width - right}
-                  y1={y}
-                  y2={y}
-                  stroke="#e2e8f0"
-                  strokeDasharray={step === 0 ? undefined : "4 4"}
-                />
+      {data.length === 0 ? (
+        <p className="py-4 text-sm text-slate-500">
+          Sem dados para os filtros selecionados.
+        </p>
+      ) : (
+        <div className="w-full overflow-x-auto">
+          <svg
+            className={`h-72 min-w-[560px] w-full ${colorClass}`}
+            viewBox={`0 0 ${width} ${height}`}
+            role="img"
+            aria-label={title}
+          >
+            {[0, 1, 2, 3, 4].map((step) => {
+              const y = top + plotHeight - (step / 4) * plotHeight;
+              const value = (maxValue * step) / 4;
+
+              return (
+                <g key={step}>
+                  <line
+                    x1={left}
+                    x2={width - right}
+                    y1={y}
+                    y2={y}
+                    stroke="#e2e8f0"
+                    strokeDasharray={step === 0 ? undefined : "4 4"}
+                  />
+                  <text
+                    x={left - 9}
+                    y={y + 4}
+                    textAnchor="end"
+                    fontSize="11"
+                    fill="#64748b"
+                  >
+                    {formatValue(value)}
+                  </text>
+                </g>
+              );
+            })}
+
+            {chartType === "line" ? (
+              <>
+                {data.length > 1 && (
+                  <path
+                    d={linePath}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                  />
+                )}
+
+                {data.map((item, index) => {
+                  const x = pointX(index);
+                  const y = pointY(item.value);
+
+                  return (
+                    <g key={`${item.label}-${index}`}>
+                      <circle
+                        cx={x}
+                        cy={y}
+                        r="5"
+                        fill="currentColor"
+                        stroke="white"
+                        strokeWidth="2"
+                      />
+                      <text
+                        x={x}
+                        y={Math.max(15, y - 11)}
+                        textAnchor="middle"
+                        fontSize="11"
+                        fontWeight="700"
+                        fill="#0f172a"
+                        stroke="white"
+                        strokeWidth="3"
+                        paintOrder="stroke"
+                      >
+                        {formatValue(item.value)}
+                      </text>
+                      <title>{`${item.label}: ${formatValue(item.value)}`}</title>
+                    </g>
+                  );
+                })}
+              </>
+            ) : (
+              data.map((item, index) => {
+                const slotWidth = plotWidth / data.length;
+                const barWidth = Math.min(44, slotWidth * 0.58);
+                const barHeight = (item.value / maxValue) * plotHeight;
+                const x =
+                  left + index * slotWidth + (slotWidth - barWidth) / 2;
+                const y = top + plotHeight - barHeight;
+
+                return (
+                  <g key={`${item.label}-${index}`}>
+                    <rect
+                      x={x}
+                      y={y}
+                      width={barWidth}
+                      height={Math.max(barHeight, 1)}
+                      rx="3"
+                      fill="currentColor"
+                    />
+                    <text
+                      x={x + barWidth / 2}
+                      y={Math.max(15, y - 7)}
+                      textAnchor="middle"
+                      fontSize="11"
+                      fontWeight="700"
+                      fill="#0f172a"
+                      stroke="white"
+                      strokeWidth="3"
+                      paintOrder="stroke"
+                    >
+                      {formatValue(item.value)}
+                    </text>
+                    <title>{`${item.label}: ${formatValue(item.value)}`}</title>
+                  </g>
+                );
+              })
+            )}
+
+            {data.map((item, index) =>
+              index % dateLabelStep === 0 || index === data.length - 1 ? (
                 <text
-                  x={left - 8}
-                  y={y + 4}
-                  textAnchor="end"
+                  key={`${item.label}-axis-${index}`}
+                  x={
+                    chartType === "column"
+                      ? left + (index + 0.5) * (plotWidth / data.length)
+                      : pointX(index)
+                  }
+                  y={height - 15}
+                  textAnchor="middle"
                   fontSize="11"
                   fill="#64748b"
                 >
-                  {formatValue(value)}
+                  {item.label.length > 10 ? item.label.slice(5) : item.label}
                 </text>
-              </g>
-            );
-          })}
-
-          {chartType === "line" ? (
-            <>
-              {data.length > 1 && (
-                <path
-                  d={linePath}
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                />
-              )}
-              {data.map((item, index) => (
-                <circle
-                  key={`${item.label}-${index}`}
-                  cx={pointX(index)}
-                  cy={pointY(item.value)}
-                  r="4"
-                  fill="currentColor"
-                >
-                  <title>{`${item.label}: ${formatValue(item.value)}`}</title>
-                </circle>
-              ))}
-            </>
-          ) : (
-            data.map((item, index) => {
-              const slotWidth = plotWidth / data.length;
-              const barWidth = Math.min(44, slotWidth * 0.58);
-              const barHeight = (Math.abs(item.value) / maxValue) * plotHeight;
-              const x = left + index * slotWidth + (slotWidth - barWidth) / 2;
-              const y = top + plotHeight - barHeight;
-
-              return (
-                <rect
-                  key={`${item.label}-${index}`}
-                  x={x}
-                  y={y}
-                  width={barWidth}
-                  height={Math.max(barHeight, 1)}
-                  rx="3"
-                  fill="currentColor"
-                >
-                  <title>{`${item.label}: ${formatValue(item.value)}`}</title>
-                </rect>
-              );
-            })
-          )}
-
-          {data.map((item, index) =>
-            index % labelStep === 0 || index === data.length - 1 ? (
-              <text
-                key={`${item.label}-label-${index}`}
-                x={chartType === "column"
-                  ? left + (index + 0.5) * (plotWidth / data.length)
-                  : pointX(index)}
-                y={height - 12}
-                textAnchor="middle"
-                fontSize="11"
-                fill="#64748b"
-              >
-                {item.label.length > 10 ? item.label.slice(5) : item.label}
-              </text>
-            ) : null
-          )}
-        </svg>
+              ) : null
+            )}
+          </svg>
+        </div>
       )}
     </article>
   );
@@ -303,10 +425,197 @@ function mapInventory(row: Record<string, unknown>): InventoryRecord {
   };
 }
 
+function toErrorForm(item: ErrorRecord): ErrorForm {
+  return {
+    date: item.date,
+    street: item.street,
+    building: item.building,
+    level: item.level,
+    apartment: item.apartment,
+    code: item.code,
+    physical: String(item.physical),
+    system: String(item.system),
+    type: item.type,
+    productCodes: item.productCodes,
+    adjustment: item.adjustment,
+    shift: item.shift,
+    responsible: item.responsible,
+    status: item.status,
+    notes: item.notes,
+  };
+}
+
+function ErrorFields({
+  value,
+  onChange,
+}: {
+  value: ErrorForm;
+  onChange: (next: ErrorForm) => void;
+}) {
+  function update<K extends keyof ErrorForm>(key: K, nextValue: ErrorForm[K]) {
+    onChange({ ...value, [key]: nextValue });
+  }
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <Field label="Data">
+        <input
+          className={inputClass}
+          type="date"
+          required
+          value={value.date}
+          onChange={(event) => update("date", event.target.value)}
+        />
+      </Field>
+      <Field label="Rua">
+        <input
+          className={inputClass}
+          required
+          value={value.street}
+          onChange={(event) => update("street", event.target.value)}
+        />
+      </Field>
+      <Field label="Prédio">
+        <input
+          className={inputClass}
+          required
+          value={value.building}
+          onChange={(event) => update("building", event.target.value)}
+        />
+      </Field>
+      <Field label="Nível">
+        <input
+          className={inputClass}
+          required
+          value={value.level}
+          onChange={(event) => update("level", event.target.value)}
+        />
+      </Field>
+      <Field label="Apartamento">
+        <input
+          className={inputClass}
+          required
+          value={value.apartment}
+          onChange={(event) => update("apartment", event.target.value)}
+        />
+      </Field>
+      <Field label="Código do produto">
+        <input
+          className={inputClass}
+          required
+          value={value.code}
+          onChange={(event) => update("code", event.target.value)}
+        />
+      </Field>
+      <Field label="Quantidade física">
+        <input
+          className={inputClass}
+          type="number"
+          min="0"
+          step="any"
+          required
+          value={value.physical}
+          onChange={(event) => update("physical", event.target.value)}
+        />
+      </Field>
+      <Field label="Quantidade no sistema">
+        <input
+          className={inputClass}
+          type="number"
+          min="0"
+          step="any"
+          required
+          value={value.system}
+          onChange={(event) => update("system", event.target.value)}
+        />
+      </Field>
+      <Field label="Tipo de erro">
+        <select
+          className={inputClass}
+          required
+          value={value.type}
+          onChange={(event) => update("type", event.target.value)}
+        >
+          <option value="">Selecione</option>
+          {errorTypes.map((type) => (
+            <option key={type}>{type}</option>
+          ))}
+        </select>
+      </Field>
+
+      {value.type === "Múltiplos produtos" && (
+        <Field label="Códigos dos produtos no endereço">
+          <input
+            className={inputClass}
+            required
+            placeholder="Separe os códigos por vírgula"
+            value={value.productCodes}
+            onChange={(event) => update("productCodes", event.target.value)}
+          />
+        </Field>
+      )}
+
+      <Field label="Ajuste no sistema?">
+        <select
+          className={inputClass}
+          value={value.adjustment}
+          onChange={(event) => update("adjustment", event.target.value)}
+        >
+          <option>Não</option>
+          <option>Sim</option>
+          <option>Pendente</option>
+        </select>
+      </Field>
+      <Field label="Turno">
+        <select
+          className={inputClass}
+          required
+          value={value.shift}
+          onChange={(event) => update("shift", event.target.value)}
+        >
+          <option value="">Selecione</option>
+          <option>A</option>
+          <option>B</option>
+          <option>C</option>
+          <option>D</option>
+          <option value="Não identificado">Não identificado</option>
+        </select>
+      </Field>
+      <Field label="Nome do responsável">
+        <input
+          className={inputClass}
+          required
+          value={value.responsible}
+          onChange={(event) => update("responsible", event.target.value)}
+        />
+      </Field>
+      <Field label="Status do processo">
+        <select
+          className={inputClass}
+          value={value.status}
+          onChange={(event) => update("status", event.target.value)}
+        >
+          <option>Avaliando</option>
+          <option>Em Andamento</option>
+          <option>Concluído</option>
+        </select>
+      </Field>
+      <Field label="Observações">
+        <input
+          className={inputClass}
+          value={value.notes}
+          onChange={(event) => update("notes", event.target.value)}
+        />
+      </Field>
+    </div>
+  );
+}
+
 export default function Home() {
   const [page, setPage] = useState<Page>("errors");
   const [errors, setErrors] = useState<ErrorRecord[]>([]);
   const [editingError, setEditingError] = useState<ErrorRecord | null>(null);
+  const [editForm, setEditForm] = useState<ErrorForm>(emptyErrorForm);
   const [inventories, setInventories] = useState<InventoryRecord[]>([]);
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -330,34 +639,9 @@ export default function Home() {
   const [inventoryMinAdjustments, setInventoryMinAdjustments] = useState("");
   const [inventoryMinExecution, setInventoryMinExecution] = useState("");
 
-  const [errorForm, setErrorForm] = useState({
-    date: "",
-    street: "",
-    building: "",
-    level: "",
-    apartment: "",
-    code: "",
-    physical: "",
-    system: "",
-    type: "",
-    productCodes: "",
-    adjustment: "Não",
-    shift: "",
-    responsible: "",
-    status: "Avaliando",
-    notes: "",
-  });
-
-  const [inventoryForm, setInventoryForm] = useState({
-    date: "",
-    counted: "",
-    accurate: "",
-    movements: "",
-    adjustments: "",
-    planned: "",
-    executed: "",
-    notes: "",
-  });
+  const [errorForm, setErrorForm] = useState<ErrorForm>(emptyErrorForm);
+  const [inventoryForm, setInventoryForm] =
+    useState<InventoryForm>(emptyInventoryForm);
 
   useEffect(() => {
     let active = true;
@@ -367,6 +651,7 @@ export default function Home() {
       .then(({ data, error }) => {
         if (!active) return;
         if (error) setMessage(error.message);
+
         setUser(
           data.session?.user
             ? {
@@ -380,7 +665,9 @@ export default function Home() {
       .catch((error: unknown) => {
         if (!active) return;
         setMessage(
-          error instanceof Error ? error.message : "Não foi possível verificar a sessão."
+          error instanceof Error
+            ? error.message
+            : "Não foi possível verificar a sessão."
         );
         setAuthReady(true);
       });
@@ -403,7 +690,10 @@ export default function Home() {
 
   useEffect(() => {
     const today = localToday();
-    setErrorForm((current) => ({ ...current, date: current.date || today }));
+    setErrorForm((current) => ({
+      ...current,
+      date: current.date || today,
+    }));
     setInventoryForm((current) => ({
       ...current,
       date: current.date || today,
@@ -435,13 +725,16 @@ export default function Home() {
     }
 
     setErrors((errorsResult.data ?? []).map((row) => mapError(row)));
-    setInventories((inventoriesResult.data ?? []).map((row) => mapInventory(row)));
+    setInventories(
+      (inventoriesResult.data ?? []).map((row) => mapInventory(row))
+    );
     setLoading(false);
   }, [user]);
 
   useEffect(() => {
-    if (user) void loadData();
-    else {
+    if (user) {
+      void loadData();
+    } else {
       setErrors([]);
       setInventories([]);
     }
@@ -528,21 +821,8 @@ export default function Home() {
     }
 
     setErrorForm({
+      ...emptyErrorForm,
       date: localToday(),
-      street: "",
-      building: "",
-      level: "",
-      apartment: "",
-      code: "",
-      physical: "",
-      system: "",
-      type: "",
-      productCodes: "",
-      adjustment: "Não",
-      shift: "",
-      responsible: "",
-      status: "Avaliando",
-      notes: "",
     });
     await loadData();
   }
@@ -557,12 +837,16 @@ export default function Home() {
     const executed = Number(inventoryForm.executed);
 
     if (accurate > counted) {
-      setMessage("Itens sem divergência não podem ser maiores que os itens contados.");
+      setMessage(
+        "Itens sem divergência não podem ser maiores que os itens contados."
+      );
       return;
     }
 
     if (executed > planned) {
-      setMessage("Contagens executadas não podem ser maiores que as planejadas.");
+      setMessage(
+        "Contagens executadas não podem ser maiores que as planejadas."
+      );
       return;
     }
 
@@ -584,14 +868,8 @@ export default function Home() {
     }
 
     setInventoryForm({
+      ...emptyInventoryForm,
       date: localToday(),
-      counted: "",
-      accurate: "",
-      movements: "",
-      adjustments: "",
-      planned: "",
-      executed: "",
-      notes: "",
     });
     await loadData();
   }
@@ -605,21 +883,21 @@ export default function Home() {
     const { error } = await supabase
       .from("errors")
       .update({
-        date: editingError.date,
-        street: editingError.street,
-        building: editingError.building,
-        level: editingError.level,
-        apartment: editingError.apartment,
-        code: editingError.code,
-        physical: editingError.physical,
-        system: editingError.system,
-        type: editingError.type,
-        product_codes: editingError.productCodes.trim(),
-        adjustment: editingError.adjustment,
-        shift: editingError.shift,
-        responsible: editingError.responsible,
-        status: editingError.status,
-        notes: editingError.notes,
+        date: editForm.date,
+        street: editForm.street,
+        building: editForm.building,
+        level: editForm.level,
+        apartment: editForm.apartment,
+        code: editForm.code,
+        physical: Number(editForm.physical),
+        system: Number(editForm.system),
+        type: editForm.type,
+        product_codes: editForm.productCodes.trim(),
+        adjustment: editForm.adjustment,
+        shift: editForm.shift,
+        responsible: editForm.responsible,
+        status: editForm.status,
+        notes: editForm.notes,
       })
       .eq("id", editingError.id);
 
@@ -629,6 +907,7 @@ export default function Home() {
     }
 
     setEditingError(null);
+    setEditForm(emptyErrorForm);
     setMessage("Registro de erro atualizado.");
     await loadData();
   }
@@ -641,6 +920,7 @@ export default function Home() {
       setMessage(`Não foi possível excluir o erro: ${error.message}`);
       return;
     }
+
     await loadData();
   }
 
@@ -652,6 +932,7 @@ export default function Home() {
       setMessage(`Não foi possível excluir o inventário: ${error.message}`);
       return;
     }
+
     await loadData();
   }
 
@@ -663,7 +944,9 @@ export default function Home() {
       (!errorShiftFilter || item.shift === errorShiftFilter) &&
       (!errorStatusFilter || item.status === errorStatusFilter) &&
       (!errorResponsibleFilter ||
-        item.responsible.toLowerCase().includes(errorResponsibleFilter.toLowerCase()))
+        item.responsible
+          .toLowerCase()
+          .includes(errorResponsibleFilter.toLowerCase()))
   );
 
   const filteredInventories = inventories.filter(
@@ -671,11 +954,15 @@ export default function Home() {
       (!inventoryFrom || item.date >= inventoryFrom) &&
       (!inventoryTo || item.date <= inventoryTo) &&
       (!inventoryMinAccuracy ||
-        percentage(item.accurate, item.counted) >= Number(inventoryMinAccuracy)) &&
-      (!inventoryMinMovements || item.movements >= Number(inventoryMinMovements)) &&
-      (!inventoryMinAdjustments || item.adjustments >= Number(inventoryMinAdjustments)) &&
+        percentage(item.accurate, item.counted) >=
+          Number(inventoryMinAccuracy)) &&
+      (!inventoryMinMovements ||
+        item.movements >= Number(inventoryMinMovements)) &&
+      (!inventoryMinAdjustments ||
+        item.adjustments >= Number(inventoryMinAdjustments)) &&
       (!inventoryMinExecution ||
-        percentage(item.executed, item.planned) >= Number(inventoryMinExecution))
+        percentage(item.executed, item.planned) >=
+          Number(inventoryMinExecution))
   );
 
   const errorsByDate = Array.from(
@@ -687,39 +974,37 @@ export default function Home() {
   ).sort((a, b) => a.label.localeCompare(b.label));
 
   const inventoryByDate = Array.from(
-    filteredInventories.reduce((byDate, item) => {
-      const totals = byDate.get(item.date) ?? {
-        counted: 0,
-        accurate: 0,
-        movements: 0,
-        planned: 0,
-        executed: 0,
-      };
-      totals.counted += item.counted;
-      totals.accurate += item.accurate;
-      totals.movements += item.movements;
-      totals.planned += item.planned;
-      totals.executed += item.executed;
-      byDate.set(item.date, totals);
-      return byDate;
-    }, new Map<string, {
-      counted: number;
-      accurate: number;
-      movements: number;
-      planned: number;
-      executed: number;
-    }>()),
+    filteredInventories.reduce(
+      (byDate, item) => {
+        const totals = byDate.get(item.date) ?? {
+          counted: 0,
+          accurate: 0,
+          movements: 0,
+          planned: 0,
+          executed: 0,
+        };
+
+        totals.counted += item.counted;
+        totals.accurate += item.accurate;
+        totals.movements += item.movements;
+        totals.planned += item.planned;
+        totals.executed += item.executed;
+        byDate.set(item.date, totals);
+        return byDate;
+      },
+      new Map<
+        string,
+        {
+          counted: number;
+          accurate: number;
+          movements: number;
+          planned: number;
+          executed: number;
+        }
+      >()
+    ),
     ([date, totals]) => ({ date, ...totals })
   ).sort((a, b) => a.date.localeCompare(b.date));
-
-  const errorTypes = [
-    "Sistema",
-    "Endereçamento",
-    "Pessoa/Processo",
-    "Movimentação",
-    "Múltiplos produtos",
-    "Outros",
-  ];
 
   const navigation: { id: Page; label: string }[] = [
     { id: "errors", label: "Lançar erros" },
@@ -759,8 +1044,9 @@ export default function Home() {
 
           {isRegistering && (
             <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              O cadastro está aberto. Como novos usuários recebem acesso automaticamente,
-              compartilhe o endereço do sistema somente com pessoas autorizadas.
+              O cadastro está aberto. Como novos usuários recebem acesso
+              automaticamente, compartilhe o endereço do sistema somente com
+              pessoas autorizadas.
             </p>
           )}
 
@@ -778,16 +1064,20 @@ export default function Home() {
                 onChange={(event) => setEmail(event.target.value)}
               />
             </Field>
+
             <Field label="Senha">
               <input
                 className={inputClass}
                 type="password"
                 required
-                autoComplete="current-password"
+                autoComplete={
+                  isRegistering ? "new-password" : "current-password"
+                }
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
               />
             </Field>
+
             {isRegistering && (
               <Field label="Confirme a senha">
                 <input
@@ -801,6 +1091,7 @@ export default function Home() {
                 />
               </Field>
             )}
+
             <button className={`${buttonClass} w-full`} type="submit">
               {isRegistering ? "Criar cadastro" : "Entrar"}
             </button>
@@ -836,9 +1127,11 @@ export default function Home() {
               </p>
               <h1 className="mt-2 text-3xl font-bold">Controle de Estoque</h1>
               <p className="mt-2 text-sm text-cyan-50">
-                Registro de endereçamento, divergências, inventários e indicadores.
+                Registro de endereçamento, divergências, inventários e
+                indicadores.
               </p>
             </div>
+
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-cyan-50">{user.email}</span>
               <button
@@ -866,16 +1159,23 @@ export default function Home() {
         )}
 
         {loading && (
-          <p className="mt-3 text-sm text-slate-600">Carregando dados do Supabase...</p>
+          <p className="mt-3 text-sm text-slate-600">
+            Carregando dados do Supabase...
+          </p>
         )}
 
-        <nav className="my-5 flex flex-wrap gap-2" aria-label="Menu principal">
+        <nav
+          className="my-5 flex flex-wrap gap-2"
+          aria-label="Menu principal"
+        >
           {navigation.map((item) => (
             <button
               key={item.id}
               type="button"
               onClick={() => setPage(item.id)}
-              className={page === item.id ? buttonClass : secondaryButtonClass}
+              className={
+                page === item.id ? buttonClass : secondaryButtonClass
+              }
             >
               {item.label}
             </button>
@@ -887,200 +1187,12 @@ export default function Home() {
             <section className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-xl font-bold">Novo registro de erro</h2>
               <p className="mb-5 mt-1 text-sm text-slate-500">
-                A diferença entre quantidade física e sistema é calculada nos relatórios.
+                A diferença entre quantidade física e sistema é calculada nos
+                relatórios.
               </p>
 
               <form onSubmit={addError}>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <Field label="Data">
-                    <input
-                      className={inputClass}
-                      type="date"
-                      required
-                      value={errorForm.date}
-                      onChange={(event) =>
-                        setErrorForm({ ...errorForm, date: event.target.value })
-                      }
-                    />
-                  </Field>
-                  <Field label="Rua">
-                    <input
-                      className={inputClass}
-                      required
-                      value={errorForm.street}
-                      onChange={(event) =>
-                        setErrorForm({ ...errorForm, street: event.target.value })
-                      }
-                    />
-                  </Field>
-                  <Field label="Prédio">
-                    <input
-                      className={inputClass}
-                      required
-                      value={errorForm.building}
-                      onChange={(event) =>
-                        setErrorForm({ ...errorForm, building: event.target.value })
-                      }
-                    />
-                  </Field>
-                  <Field label="Nível">
-                    <input
-                      className={inputClass}
-                      required
-                      value={errorForm.level}
-                      onChange={(event) =>
-                        setErrorForm({ ...errorForm, level: event.target.value })
-                      }
-                    />
-                  </Field>
-                  <Field label="Apartamento">
-                    <input
-                      className={inputClass}
-                      required
-                      value={errorForm.apartment}
-                      onChange={(event) =>
-                        setErrorForm({ ...errorForm, apartment: event.target.value })
-                      }
-                    />
-                  </Field>
-                  <Field label="Código do produto">
-                    <input
-                      className={inputClass}
-                      required
-                      value={errorForm.code}
-                      onChange={(event) =>
-                        setErrorForm({ ...errorForm, code: event.target.value })
-                      }
-                    />
-                  </Field>
-                  <Field label="Quantidade física">
-                    <input
-                      className={inputClass}
-                      type="number"
-                      min="0"
-                      step="any"
-                      required
-                      value={errorForm.physical}
-                      onChange={(event) =>
-                        setErrorForm({ ...errorForm, physical: event.target.value })
-                      }
-                    />
-                  </Field>
-                  <Field label="Quantidade no sistema">
-                    <input
-                      className={inputClass}
-                      type="number"
-                      min="0"
-                      step="any"
-                      required
-                      value={errorForm.system}
-                      onChange={(event) =>
-                        setErrorForm({ ...errorForm, system: event.target.value })
-                      }
-                    />
-                  </Field>
-                  <Field label="Tipo de erro">
-                    <select
-                      className={inputClass}
-                      required
-                      value={errorForm.type}
-                      onChange={(event) =>
-                        setErrorForm({ ...errorForm, type: event.target.value })
-                      }
-                    >
-                      <option value="">Selecione</option>
-                      {errorTypes.map((type) => (
-                        <option key={type}>{type}</option>
-                      ))}
-                    </select>
-                  </Field>
-
-                  {errorForm.type === "Múltiplos produtos" && (
-                    <Field label="Códigos dos produtos no endereço">
-                      <input
-                        className={inputClass}
-                        required
-                        placeholder="Separe os códigos por vírgula"
-                        value={errorForm.productCodes}
-                        onChange={(event) =>
-                          setErrorForm({
-                            ...errorForm,
-                            productCodes: event.target.value,
-                          })
-                        }
-                      />
-                    </Field>
-                  )}
-
-                  <Field label="Ajuste no sistema?">
-                    <select
-                      className={inputClass}
-                      value={errorForm.adjustment}
-                      onChange={(event) =>
-                        setErrorForm({
-                          ...errorForm,
-                          adjustment: event.target.value,
-                        })
-                      }
-                    >
-                      <option>Não</option>
-                      <option>Sim</option>
-                      <option>Pendente</option>
-                    </select>
-                  </Field>
-                  <Field label="Turno">
-                    <select
-                      className={inputClass}
-                      required
-                      value={errorForm.shift}
-                      onChange={(event) =>
-                        setErrorForm({ ...errorForm, shift: event.target.value })
-                      }
-                    >
-                      <option value="">Selecione</option>
-                      <option>A</option>
-                      <option>B</option>
-                      <option>C</option>
-                      <option>D</option>
-                      <option value="Não identificado">Não identificado</option>
-                    </select>
-                  </Field>
-                  <Field label="Nome do responsável">
-                    <input
-                      className={inputClass}
-                      required
-                      value={errorForm.responsible}
-                      onChange={(event) =>
-                        setErrorForm({
-                          ...errorForm,
-                          responsible: event.target.value,
-                        })
-                      }
-                    />
-                  </Field>
-                  <Field label="Status do processo">
-                    <select
-                      className={inputClass}
-                      value={errorForm.status}
-                      onChange={(event) =>
-                        setErrorForm({ ...errorForm, status: event.target.value })
-                      }
-                    >
-                      <option>Avaliando</option>
-                      <option>Em Andamento</option>
-                      <option>Concluído</option>
-                    </select>
-                  </Field>
-                  <Field label="Observações">
-                    <input
-                      className={inputClass}
-                      value={errorForm.notes}
-                      onChange={(event) =>
-                        setErrorForm({ ...errorForm, notes: event.target.value })
-                      }
-                    />
-                  </Field>
-                </div>
+                <ErrorFields value={errorForm} onChange={setErrorForm} />
                 <button className={`${buttonClass} mt-5`} type="submit">
                   Adicionar ocorrência
                 </button>
@@ -1089,87 +1201,23 @@ export default function Home() {
 
             {editingError && (
               <section className="mb-5 rounded-2xl border border-cyan-200 bg-white p-5 shadow-sm">
-                <h2 className="mb-4 text-xl font-bold">Editar registro de erro</h2>
+                <h2 className="mb-4 text-xl font-bold">
+                  Editar registro de erro
+                </h2>
                 <form onSubmit={saveErrorEdit}>
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <Field label="Data">
-                      <input className={inputClass} type="date" required value={editingError.date}
-                        onChange={(event) => setEditingError({ ...editingError, date: event.target.value })} />
-                    </Field>
-                    <Field label="Rua">
-                      <input className={inputClass} required value={editingError.street}
-                        onChange={(event) => setEditingError({ ...editingError, street: event.target.value })} />
-                    </Field>
-                    <Field label="Prédio">
-                      <input className={inputClass} required value={editingError.building}
-                        onChange={(event) => setEditingError({ ...editingError, building: event.target.value })} />
-                    </Field>
-                    <Field label="Nível">
-                      <input className={inputClass} required value={editingError.level}
-                        onChange={(event) => setEditingError({ ...editingError, level: event.target.value })} />
-                    </Field>
-                    <Field label="Apartamento">
-                      <input className={inputClass} required value={editingError.apartment}
-                        onChange={(event) => setEditingError({ ...editingError, apartment: event.target.value })} />
-                    </Field>
-                    <Field label="Código do produto">
-                      <input className={inputClass} required value={editingError.code}
-                        onChange={(event) => setEditingError({ ...editingError, code: event.target.value })} />
-                    </Field>
-                    <Field label="Quantidade física">
-                      <input className={inputClass} type="number" min="0" step="any" required value={editingError.physical}
-                        onChange={(event) => setEditingError({ ...editingError, physical: Number(event.target.value) })} />
-                    </Field>
-                    <Field label="Quantidade no sistema">
-                      <input className={inputClass} type="number" min="0" step="any" required value={editingError.system}
-                        onChange={(event) => setEditingError({ ...editingError, system: Number(event.target.value) })} />
-                    </Field>
-                    <Field label="Tipo de erro">
-                      <select className={inputClass} required value={editingError.type}
-                        onChange={(event) => setEditingError({ ...editingError, type: event.target.value })}>
-                        <option value="">Selecione</option>
-                        {errorTypes.map((type) => <option key={type}>{type}</option>)}
-                      </select>
-                    </Field>
-                    {editingError.type === "Múltiplos produtos" && (
-                      <Field label="Códigos dos produtos no endereço">
-                        <input className={inputClass} required placeholder="Separe os códigos por vírgula"
-                          value={editingError.productCodes}
-                          onChange={(event) => setEditingError({ ...editingError, productCodes: event.target.value })} />
-                      </Field>
-                    )}
-                    <Field label="Ajuste no sistema?">
-                      <select className={inputClass} value={editingError.adjustment}
-                        onChange={(event) => setEditingError({ ...editingError, adjustment: event.target.value })}>
-                        <option>Não</option><option>Sim</option><option>Pendente</option>
-                      </select>
-                    </Field>
-                    <Field label="Turno">
-                      <select className={inputClass} required value={editingError.shift}
-                        onChange={(event) => setEditingError({ ...editingError, shift: event.target.value })}>
-                        <option value="">Selecione</option>
-                        <option>A</option><option>B</option><option>C</option><option>D</option>
-                        <option value="Não identificado">Não identificado</option>
-                      </select>
-                    </Field>
-                    <Field label="Nome do responsável">
-                      <input className={inputClass} required value={editingError.responsible}
-                        onChange={(event) => setEditingError({ ...editingError, responsible: event.target.value })} />
-                    </Field>
-                    <Field label="Status do processo">
-                      <select className={inputClass} value={editingError.status}
-                        onChange={(event) => setEditingError({ ...editingError, status: event.target.value })}>
-                        <option>Avaliando</option><option>Em Andamento</option><option>Concluído</option>
-                      </select>
-                    </Field>
-                    <Field label="Observações">
-                      <input className={inputClass} value={editingError.notes}
-                        onChange={(event) => setEditingError({ ...editingError, notes: event.target.value })} />
-                    </Field>
-                  </div>
+                  <ErrorFields value={editForm} onChange={setEditForm} />
                   <div className="mt-5 flex flex-wrap gap-2">
-                    <button className={buttonClass} type="submit">Salvar alterações</button>
-                    <button className={secondaryButtonClass} type="button" onClick={() => setEditingError(null)}>
+                    <button className={buttonClass} type="submit">
+                      Salvar alterações
+                    </button>
+                    <button
+                      className={secondaryButtonClass}
+                      type="button"
+                      onClick={() => {
+                        setEditingError(null);
+                        setEditForm(emptyErrorForm);
+                      }}
+                    >
                       Cancelar
                     </button>
                   </div>
@@ -1202,12 +1250,15 @@ export default function Home() {
                       <tr key={item.id}>
                         <td className="p-3">{item.date}</td>
                         <td className="p-3">
-                          {item.street} / {item.building} / {item.level} / {item.apartment}
+                          {item.street} / {item.building} / {item.level} /{" "}
+                          {item.apartment}
                         </td>
                         <td className="p-3">{item.code}</td>
                         <td className="p-3">{formatNumber(item.physical)}</td>
                         <td className="p-3">{formatNumber(item.system)}</td>
-                        <td className="p-3">{formatNumber(item.physical - item.system)}</td>
+                        <td className="p-3">
+                          {formatNumber(item.physical - item.system)}
+                        </td>
                         <td className="p-3">{item.type}</td>
                         <td className="p-3">{item.adjustment}</td>
                         <td className="p-3">{item.shift}</td>
@@ -1220,7 +1271,8 @@ export default function Home() {
                               className="font-semibold text-cyan-800 hover:underline"
                               onClick={() => {
                                 setMessage("");
-                                setEditingError({ ...item });
+                                setEditingError(item);
+                                setEditForm(toErrorForm(item));
                               }}
                             >
                               Editar
@@ -1236,9 +1288,13 @@ export default function Home() {
                         </td>
                       </tr>
                     ))}
+
                     {errors.length === 0 && (
                       <tr>
-                        <td colSpan={12} className="p-6 text-center text-slate-500">
+                        <td
+                          colSpan={12}
+                          className="p-6 text-center text-slate-500"
+                        >
                           Nenhum erro registrado.
                         </td>
                       </tr>
@@ -1272,25 +1328,52 @@ export default function Home() {
                   />
                 </Field>
                 <Field label="Tipo de erro">
-                  <select className={inputClass} value={errorTypeFilter} onChange={(event) => setErrorTypeFilter(event.target.value)}>
+                  <select
+                    className={inputClass}
+                    value={errorTypeFilter}
+                    onChange={(event) => setErrorTypeFilter(event.target.value)}
+                  >
                     <option value="">Todos os tipos</option>
-                    {errorTypes.map((type) => <option key={type}>{type}</option>)}
+                    {errorTypes.map((type) => (
+                      <option key={type}>{type}</option>
+                    ))}
                   </select>
                 </Field>
                 <Field label="Turno">
-                  <select className={inputClass} value={errorShiftFilter} onChange={(event) => setErrorShiftFilter(event.target.value)}>
+                  <select
+                    className={inputClass}
+                    value={errorShiftFilter}
+                    onChange={(event) => setErrorShiftFilter(event.target.value)}
+                  >
                     <option value="">Todos os turnos</option>
-                    {["A", "B", "C", "D", "Não identificado"].map((shift) => <option key={shift}>{shift}</option>)}
+                    {["A", "B", "C", "D", "Não identificado"].map((shift) => (
+                      <option key={shift}>{shift}</option>
+                    ))}
                   </select>
                 </Field>
                 <Field label="Status">
-                  <select className={inputClass} value={errorStatusFilter} onChange={(event) => setErrorStatusFilter(event.target.value)}>
+                  <select
+                    className={inputClass}
+                    value={errorStatusFilter}
+                    onChange={(event) => setErrorStatusFilter(event.target.value)}
+                  >
                     <option value="">Todos os status</option>
-                    {["Avaliando", "Em Andamento", "Concluído"].map((status) => <option key={status}>{status}</option>)}
+                    {["Avaliando", "Em Andamento", "Concluído"].map(
+                      (status) => (
+                        <option key={status}>{status}</option>
+                      )
+                    )}
                   </select>
                 </Field>
                 <Field label="Responsável">
-                  <input className={inputClass} value={errorResponsibleFilter} onChange={(event) => setErrorResponsibleFilter(event.target.value)} placeholder="Filtrar por nome" />
+                  <input
+                    className={inputClass}
+                    value={errorResponsibleFilter}
+                    onChange={(event) =>
+                      setErrorResponsibleFilter(event.target.value)
+                    }
+                    placeholder="Filtrar por nome"
+                  />
                 </Field>
                 <button
                   className={secondaryButtonClass}
@@ -1310,85 +1393,81 @@ export default function Home() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <SummaryCard label="Ocorrências" value={filteredErrors.length} />
+              <SummaryCard
+                label="Ocorrências"
+                value={filteredErrors.length}
+              />
               <SummaryCard
                 label="Pendentes"
-                value={filteredErrors.filter((item) => item.status !== "Concluído").length}
+                value={
+                  filteredErrors.filter(
+                    (item) => item.status !== "Concluído"
+                  ).length
+                }
               />
               <SummaryCard
                 label="Erros de endereçamento"
-                value={filteredErrors.filter((item) => item.type === "Endereçamento").length}
+                value={
+                  filteredErrors.filter(
+                    (item) => item.type === "Endereçamento"
+                  ).length
+                }
               />
               <SummaryCard
                 label="Ajustes realizados"
-                value={filteredErrors.filter((item) => item.adjustment === "Sim").length}
+                value={
+                  filteredErrors.filter(
+                    (item) => item.adjustment === "Sim"
+                  ).length
+                }
               />
             </div>
 
-            <div className="grid gap-5 md:grid-cols-2">
-              <MetricChart
-                title="Todas as ocorrências por dia"
-                data={errorsByDate}
-                chartType="line"
-              />
-              <MetricChart
-                title="Ocorrências por tipo"
-                data={errorTypes.map((type) => ({
-                  label: type,
-                  value: filteredErrors.filter((item) => item.type === type).length,
-                }))}
-              />
-              <MetricChart
-                title="Ocorrências por turno"
-                data={["A", "B", "C", "D", "Não identificado"].map((shift) => ({
-                  label: shift === "Não identificado" ? shift : `Turno ${shift}`,
-                  value: filteredErrors.filter((item) => item.shift === shift).length,
-                }))}
-                color="bg-indigo-600"
-              />
-              <MetricChart
-                title="Processos por status"
-                data={["Avaliando", "Em Andamento", "Concluído"].map((status) => ({
-                  label: status,
-                  value: filteredErrors.filter((item) => item.status === status).length,
-                }))}
-                color="bg-amber-500"
-              />
-              <MetricChart
-                title="Ajustes no sistema"
-                data={["Sim", "Não", "Pendente"].map((adjustment) => ({
-                  label: adjustment,
-                  value: filteredErrors.filter((item) => item.adjustment === adjustment).length,
-                }))}
-                color="bg-emerald-600"
-              />
-              <MetricChart
-                title="Diferença física × sistema"
-                data={filteredErrors.slice(0, 10).map((item) => ({
-                  label: `${item.date} · ${item.code}`,
-                  value: item.physical - item.system,
-                }))}
-                color="bg-rose-600"
-                formatValue={(value) => value.toLocaleString("pt-BR", { signDisplay: "always" })}
-              />
-            </div>
+            <MetricChart
+              title="Todas as ocorrências por dia"
+              data={errorsByDate}
+              chartType="line"
+              color="bg-cyan-700"
+            />
 
             <div className="grid gap-5 md:grid-cols-2">
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 className="mb-3 font-bold">Ocorrências por tipo</h3>
                 {errorTypes.map((type) => (
-                  <p key={type} className="flex justify-between border-b py-2 text-sm">
+                  <p
+                    key={type}
+                    className="flex justify-between border-b py-2 text-sm"
+                  >
                     <span>{type}</span>
-                    <strong>{filteredErrors.filter((item) => item.type === type).length}</strong>
+                    <strong>
+                      {
+                        filteredErrors.filter((item) => item.type === type)
+                          .length
+                      }
+                    </strong>
                   </p>
                 ))}
               </div>
+
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 className="mb-3 font-bold">Ocorrências por turno</h3>
                 {["A", "B", "C", "D", "Não identificado"].map((shift) => (
-                  <p key={shift} className="flex justify-between border-b py-2 text-sm">
-                    <span>{shift === "Não identificado" ? shift : `Turno ${shift}`}</span>
-                    <strong>{filteredErrors.filter((item) => item.shift === shift).length}</strong>
+                  <p
+                    key={shift}
+                    className="flex justify-between border-b py-2 text-sm"
+                  >
+                    <span>
+                      {shift === "Não identificado"
+                        ? shift
+                        : `Turno ${shift}`}
+                    </span>
+                    <strong>
+                      {
+                        filteredErrors.filter(
+                          (item) => item.shift === shift
+                        ).length
+                      }
+                    </strong>
                   </p>
                 ))}
               </div>
@@ -1397,9 +1476,18 @@ export default function Home() {
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="mb-3 font-bold">Processos por status</h3>
               {["Avaliando", "Em Andamento", "Concluído"].map((status) => (
-                <p key={status} className="flex justify-between border-b py-2 text-sm">
+                <p
+                  key={status}
+                  className="flex justify-between border-b py-2 text-sm"
+                >
                   <span>{status}</span>
-                  <strong>{filteredErrors.filter((item) => item.status === status).length}</strong>
+                  <strong>
+                    {
+                      filteredErrors.filter(
+                        (item) => item.status === status
+                      ).length
+                    }
+                  </strong>
                 </p>
               ))}
             </div>
@@ -1409,66 +1497,86 @@ export default function Home() {
         {page === "inventory" && (
           <>
             <section className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="text-xl font-bold">Novo fechamento diário de inventário</h2>
+              <h2 className="text-xl font-bold">
+                Novo fechamento diário de inventário
+              </h2>
               <p className="mb-5 mt-1 text-sm text-slate-500">
-                Informe os totais do dia. A acuracidade e a execução são calculadas automaticamente.
+                Informe os totais do dia. A acuracidade e a execução são
+                calculadas automaticamente.
               </p>
-              <form onSubmit={addInventory}>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <Field label="Data">
-                    <input
-                      className={inputClass}
-                      type="date"
-                      required
-                      value={inventoryForm.date}
-                      onChange={(event) =>
-                        setInventoryForm({ ...inventoryForm, date: event.target.value })
-                      }
-                    />
-                  </Field>
-                  {[
+
+              <form
+                onSubmit={addInventory}
+                className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+              >
+                <Field label="Data">
+                  <input
+                    className={inputClass}
+                    type="date"
+                    required
+                    value={inventoryForm.date}
+                    onChange={(event) =>
+                      setInventoryForm({
+                        ...inventoryForm,
+                        date: event.target.value,
+                      })
+                    }
+                  />
+                </Field>
+
+                {(
+                  [
                     ["Itens contados", "counted"],
                     ["Itens sem divergência", "accurate"],
                     ["Erros de movimentação", "movements"],
                     ["Ajustes de estoque", "adjustments"],
                     ["Contagens planejadas", "planned"],
                     ["Contagens executadas", "executed"],
-                  ].map(([label, key]) => (
-                    <Field key={key} label={label}>
-                      <input
-                        className={inputClass}
-                        type="number"
-                        min="0"
-                        step="1"
-                        required
-                        value={inventoryForm[key as keyof typeof inventoryForm]}
-                        onChange={(event) =>
-                          setInventoryForm({
-                            ...inventoryForm,
-                            [key]: event.target.value,
-                          })
-                        }
-                      />
-                    </Field>
-                  ))}
-                  <Field label="Observações">
+                  ] as const
+                ).map(([label, key]) => (
+                  <Field key={key} label={label}>
                     <input
                       className={inputClass}
-                      value={inventoryForm.notes}
+                      type="number"
+                      min="0"
+                      step="1"
+                      required
+                      value={inventoryForm[key]}
                       onChange={(event) =>
-                        setInventoryForm({ ...inventoryForm, notes: event.target.value })
+                        setInventoryForm({
+                          ...inventoryForm,
+                          [key]: event.target.value,
+                        })
                       }
                     />
                   </Field>
+                ))}
+
+                <Field label="Observações">
+                  <input
+                    className={inputClass}
+                    value={inventoryForm.notes}
+                    onChange={(event) =>
+                      setInventoryForm({
+                        ...inventoryForm,
+                        notes: event.target.value,
+                      })
+                    }
+                  />
+                </Field>
+
+                <div className="sm:col-span-2 lg:col-span-4">
+                  <button className={buttonClass} type="submit">
+                    Adicionar fechamento
+                  </button>
                 </div>
-                <button className={`${buttonClass} mt-5`} type="submit">
-                  Adicionar fechamento
-                </button>
               </form>
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="mb-4 text-xl font-bold">Registros de inventário</h2>
+              <h2 className="mb-4 text-xl font-bold">
+                Registros de inventário
+              </h2>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[900px] text-left text-sm">
                   <thead className="bg-slate-100 text-xs uppercase text-slate-600">
@@ -1491,12 +1599,24 @@ export default function Home() {
                         <td className="p-3">{item.date}</td>
                         <td className="p-3">{formatNumber(item.counted)}</td>
                         <td className="p-3">{formatNumber(item.accurate)}</td>
-                        <td className="p-3">{formatPercent(percentage(item.accurate, item.counted))}</td>
-                        <td className="p-3">{formatNumber(item.movements)}</td>
-                        <td className="p-3">{formatNumber(item.adjustments)}</td>
+                        <td className="p-3">
+                          {formatPercent(
+                            percentage(item.accurate, item.counted)
+                          )}
+                        </td>
+                        <td className="p-3">
+                          {formatNumber(item.movements)}
+                        </td>
+                        <td className="p-3">
+                          {formatNumber(item.adjustments)}
+                        </td>
                         <td className="p-3">{formatNumber(item.planned)}</td>
                         <td className="p-3">{formatNumber(item.executed)}</td>
-                        <td className="p-3">{formatPercent(percentage(item.executed, item.planned))}</td>
+                        <td className="p-3">
+                          {formatPercent(
+                            percentage(item.executed, item.planned)
+                          )}
+                        </td>
                         <td className="p-3">
                           <button
                             type="button"
@@ -1508,9 +1628,13 @@ export default function Home() {
                         </td>
                       </tr>
                     ))}
+
                     {inventories.length === 0 && (
                       <tr>
-                        <td colSpan={10} className="p-6 text-center text-slate-500">
+                        <td
+                          colSpan={10}
+                          className="p-6 text-center text-slate-500"
+                        >
                           Nenhum inventário registrado.
                         </td>
                       </tr>
@@ -1525,16 +1649,22 @@ export default function Home() {
         {page === "inventoryDashboard" && (
           <section className="space-y-5">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="mb-4 text-xl font-bold">Dashboard de inventário</h2>
+              <h2 className="mb-4 text-xl font-bold">
+                Dashboard de inventário
+              </h2>
+
               <div className="flex flex-wrap items-end gap-3">
                 <Field label="De">
                   <input
                     className={inputClass}
                     type="date"
                     value={inventoryFrom}
-                    onChange={(event) => setInventoryFrom(event.target.value)}
+                    onChange={(event) =>
+                      setInventoryFrom(event.target.value)
+                    }
                   />
                 </Field>
+
                 <Field label="Até">
                   <input
                     className={inputClass}
@@ -1543,18 +1673,60 @@ export default function Home() {
                     onChange={(event) => setInventoryTo(event.target.value)}
                   />
                 </Field>
+
                 <Field label="Acuracidade mínima (%)">
-                  <input className={inputClass} type="number" min="0" max="100" value={inventoryMinAccuracy} onChange={(event) => setInventoryMinAccuracy(event.target.value)} placeholder="Ex.: 95" />
+                  <input
+                    className={inputClass}
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={inventoryMinAccuracy}
+                    onChange={(event) =>
+                      setInventoryMinAccuracy(event.target.value)
+                    }
+                    placeholder="Ex.: 95"
+                  />
                 </Field>
+
                 <Field label="Erros de movimentação (mín.)">
-                  <input className={inputClass} type="number" min="0" value={inventoryMinMovements} onChange={(event) => setInventoryMinMovements(event.target.value)} placeholder="Ex.: 1" />
+                  <input
+                    className={inputClass}
+                    type="number"
+                    min="0"
+                    value={inventoryMinMovements}
+                    onChange={(event) =>
+                      setInventoryMinMovements(event.target.value)
+                    }
+                    placeholder="Ex.: 1"
+                  />
                 </Field>
+
                 <Field label="Ajustes de estoque (mín.)">
-                  <input className={inputClass} type="number" min="0" value={inventoryMinAdjustments} onChange={(event) => setInventoryMinAdjustments(event.target.value)} placeholder="Ex.: 1" />
+                  <input
+                    className={inputClass}
+                    type="number"
+                    min="0"
+                    value={inventoryMinAdjustments}
+                    onChange={(event) =>
+                      setInventoryMinAdjustments(event.target.value)
+                    }
+                    placeholder="Ex.: 1"
+                  />
                 </Field>
+
                 <Field label="Execução mínima (%)">
-                  <input className={inputClass} type="number" min="0" value={inventoryMinExecution} onChange={(event) => setInventoryMinExecution(event.target.value)} placeholder="Ex.: 90" />
+                  <input
+                    className={inputClass}
+                    type="number"
+                    min="0"
+                    value={inventoryMinExecution}
+                    onChange={(event) =>
+                      setInventoryMinExecution(event.target.value)
+                    }
+                    placeholder="Ex.: 90"
+                  />
                 </Field>
+
                 <button
                   className={secondaryButtonClass}
                   type="button"
@@ -1573,21 +1745,52 @@ export default function Home() {
             </div>
 
             {(() => {
-              const counted = filteredInventories.reduce((sum, item) => sum + item.counted, 0);
-              const accurate = filteredInventories.reduce((sum, item) => sum + item.accurate, 0);
-              const planned = filteredInventories.reduce((sum, item) => sum + item.planned, 0);
-              const executed = filteredInventories.reduce((sum, item) => sum + item.executed, 0);
-              const movements = filteredInventories.reduce((sum, item) => sum + item.movements, 0);
-              const adjustments = filteredInventories.reduce((sum, item) => sum + item.adjustments, 0);
+              const counted = filteredInventories.reduce(
+                (sum, item) => sum + item.counted,
+                0
+              );
+              const accurate = filteredInventories.reduce(
+                (sum, item) => sum + item.accurate,
+                0
+              );
+              const planned = filteredInventories.reduce(
+                (sum, item) => sum + item.planned,
+                0
+              );
+              const executed = filteredInventories.reduce(
+                (sum, item) => sum + item.executed,
+                0
+              );
+              const movements = filteredInventories.reduce(
+                (sum, item) => sum + item.movements,
+                0
+              );
+              const adjustments = filteredInventories.reduce(
+                (sum, item) => sum + item.adjustments,
+                0
+              );
 
               return (
                 <>
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <SummaryCard label="Acuracidade do estoque" value={formatPercent(percentage(accurate, counted))} />
-                    <SummaryCard label="Execução de contagens" value={formatPercent(percentage(executed, planned))} />
-                    <SummaryCard label="Erros de movimentação" value={formatNumber(movements)} />
-                    <SummaryCard label="Ajustes de estoque" value={formatNumber(adjustments)} />
+                    <SummaryCard
+                      label="Acuracidade do estoque"
+                      value={formatPercent(percentage(accurate, counted))}
+                    />
+                    <SummaryCard
+                      label="Execução de contagens"
+                      value={formatPercent(percentage(executed, planned))}
+                    />
+                    <SummaryCard
+                      label="Erros de movimentação"
+                      value={formatNumber(movements)}
+                    />
+                    <SummaryCard
+                      label="Ajustes de estoque"
+                      value={formatNumber(adjustments)}
+                    />
                   </div>
+
                   <div className="grid gap-5 md:grid-cols-2">
                     <MetricChart
                       title="Acuracidade do estoque por dia"
@@ -1599,6 +1802,7 @@ export default function Home() {
                       formatValue={formatPercent}
                       chartType="line"
                     />
+
                     <MetricChart
                       title="Erros de movimentação por dia"
                       data={inventoryByDate.map((item) => ({
@@ -1608,6 +1812,7 @@ export default function Home() {
                       color="bg-rose-600"
                       chartType="column"
                     />
+
                     <MetricChart
                       title="Execução de contagens por dia"
                       data={inventoryByDate.map((item) => ({
@@ -1619,13 +1824,17 @@ export default function Home() {
                       chartType="line"
                     />
                   </div>
+
                   <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <h3 className="mb-3 font-bold">Resumo do período</h3>
                     <p className="text-sm text-slate-700">
-                      {formatNumber(accurate)} itens sem divergência de {formatNumber(counted)} contados.{" "}
-                      {formatNumber(executed)} contagens executadas de {formatNumber(planned)} planejadas.
+                      {formatNumber(accurate)} itens sem divergência de{" "}
+                      {formatNumber(counted)} contados.{" "}
+                      {formatNumber(executed)} contagens executadas de{" "}
+                      {formatNumber(planned)} planejadas.
                     </p>
                   </div>
+
                   <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <h3 className="mb-3 font-bold">Acompanhamento por dia</h3>
                     <div className="overflow-x-auto">
@@ -1645,17 +1854,37 @@ export default function Home() {
                           {filteredInventories.map((item) => (
                             <tr key={item.id}>
                               <td className="p-3">{item.date}</td>
-                              <td className="p-3">{item.counted}</td>
-                              <td className="p-3">{item.accurate}</td>
-                              <td className="p-3">{formatPercent(percentage(item.accurate, item.counted))}</td>
-                              <td className="p-3">{item.planned}</td>
-                              <td className="p-3">{item.executed}</td>
-                              <td className="p-3">{formatPercent(percentage(item.executed, item.planned))}</td>
+                              <td className="p-3">
+                                {formatNumber(item.counted)}
+                              </td>
+                              <td className="p-3">
+                                {formatNumber(item.accurate)}
+                              </td>
+                              <td className="p-3">
+                                {formatPercent(
+                                  percentage(item.accurate, item.counted)
+                                )}
+                              </td>
+                              <td className="p-3">
+                                {formatNumber(item.planned)}
+                              </td>
+                              <td className="p-3">
+                                {formatNumber(item.executed)}
+                              </td>
+                              <td className="p-3">
+                                {formatPercent(
+                                  percentage(item.executed, item.planned)
+                                )}
+                              </td>
                             </tr>
                           ))}
+
                           {filteredInventories.length === 0 && (
                             <tr>
-                              <td colSpan={7} className="p-6 text-center text-slate-500">
+                              <td
+                                colSpan={7}
+                                className="p-6 text-center text-slate-500"
+                              >
                                 Sem dados para o período selecionado.
                               </td>
                             </tr>
@@ -1673,26 +1902,61 @@ export default function Home() {
         {page === "base" && (
           <section className="space-y-5">
             <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-sm text-cyan-900">
-              Os registros desta tela são carregados do banco Supabase e compartilhados com os usuários autorizados.
+              Os registros desta tela são carregados do banco Supabase e
+              compartilhados com os usuários autorizados.
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-bold">Base consolidada de erros</h2>
-                  <p className="text-sm text-slate-500">Uma linha para cada ocorrência registrada.</p>
+                  <h2 className="text-xl font-bold">
+                    Base consolidada de erros
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    Uma linha para cada ocorrência registrada.
+                  </p>
                 </div>
+
                 <button
                   className={secondaryButtonClass}
                   type="button"
                   onClick={() =>
                     downloadCsv("base-erros-dmp.csv", [
-                      ["Data", "Rua", "Prédio", "Nível", "Apartamento", "Código", "Físico", "Sistema", "Diferença", "Tipo", "Produtos no endereço", "Ajuste", "Turno", "Responsável", "Status", "Observações"],
+                      [
+                        "Data",
+                        "Rua",
+                        "Prédio",
+                        "Nível",
+                        "Apartamento",
+                        "Código",
+                        "Físico",
+                        "Sistema",
+                        "Diferença",
+                        "Tipo",
+                        "Produtos no endereço",
+                        "Ajuste",
+                        "Turno",
+                        "Responsável",
+                        "Status",
+                        "Observações",
+                      ],
                       ...errors.map((item) => [
-                        item.date, item.street, item.building, item.level, item.apartment,
-                        item.code, item.physical, item.system, item.physical - item.system,
-                        item.type, item.productCodes, item.adjustment, item.shift,
-                        item.responsible, item.status, item.notes,
+                        item.date,
+                        item.street,
+                        item.building,
+                        item.level,
+                        item.apartment,
+                        item.code,
+                        item.physical,
+                        item.system,
+                        item.physical - item.system,
+                        item.type,
+                        item.productCodes,
+                        item.adjustment,
+                        item.shift,
+                        item.responsible,
+                        item.status,
+                        item.notes,
                       ]),
                     ])
                   }
@@ -1700,31 +1964,52 @@ export default function Home() {
                   Exportar erros CSV
                 </button>
               </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1000px] text-left text-sm">
                   <thead className="bg-slate-100 text-xs uppercase text-slate-600">
                     <tr>
-                      <th className="p-3">Data</th><th className="p-3">Rua</th>
-                      <th className="p-3">Prédio</th><th className="p-3">Nível</th>
-                      <th className="p-3">Apartamento</th><th className="p-3">Código</th>
-                      <th className="p-3">Físico</th><th className="p-3">Sistema</th>
-                      <th className="p-3">Diferença</th><th className="p-3">Tipo</th>
+                      <th className="p-3">Data</th>
+                      <th className="p-3">Rua</th>
+                      <th className="p-3">Prédio</th>
+                      <th className="p-3">Nível</th>
+                      <th className="p-3">Apartamento</th>
+                      <th className="p-3">Código</th>
+                      <th className="p-3">Físico</th>
+                      <th className="p-3">Sistema</th>
+                      <th className="p-3">Diferença</th>
+                      <th className="p-3">Tipo</th>
                       <th className="p-3">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {errors.map((item) => (
                       <tr key={item.id}>
-                        <td className="p-3">{item.date}</td><td className="p-3">{item.street}</td>
-                        <td className="p-3">{item.building}</td><td className="p-3">{item.level}</td>
-                        <td className="p-3">{item.apartment}</td><td className="p-3">{item.code}</td>
-                        <td className="p-3">{item.physical}</td><td className="p-3">{item.system}</td>
-                        <td className="p-3">{item.physical - item.system}</td><td className="p-3">{item.type}</td>
+                        <td className="p-3">{item.date}</td>
+                        <td className="p-3">{item.street}</td>
+                        <td className="p-3">{item.building}</td>
+                        <td className="p-3">{item.level}</td>
+                        <td className="p-3">{item.apartment}</td>
+                        <td className="p-3">{item.code}</td>
+                        <td className="p-3">{formatNumber(item.physical)}</td>
+                        <td className="p-3">{formatNumber(item.system)}</td>
+                        <td className="p-3">
+                          {formatNumber(item.physical - item.system)}
+                        </td>
+                        <td className="p-3">{item.type}</td>
                         <td className="p-3">{item.status}</td>
                       </tr>
                     ))}
+
                     {errors.length === 0 && (
-                      <tr><td colSpan={11} className="p-6 text-center text-slate-500">Nenhum erro registrado.</td></tr>
+                      <tr>
+                        <td
+                          colSpan={11}
+                          className="p-6 text-center text-slate-500"
+                        >
+                          Nenhum erro registrado.
+                        </td>
+                      </tr>
                     )}
                   </tbody>
                 </table>
@@ -1734,20 +2019,46 @@ export default function Home() {
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-bold">Base consolidada de inventário</h2>
-                  <p className="text-sm text-slate-500">Fechamentos diários e indicadores de contagem.</p>
+                  <h2 className="text-xl font-bold">
+                    Base consolidada de inventário
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    Fechamentos diários e indicadores de contagem.
+                  </p>
                 </div>
+
                 <button
                   className={secondaryButtonClass}
                   type="button"
                   onClick={() =>
                     downloadCsv("base-inventario-dmp.csv", [
-                      ["Data", "Itens contados", "Sem divergência", "Acuracidade", "Erros movimentação", "Ajustes", "Planejadas", "Executadas", "Execução", "Observações"],
+                      [
+                        "Data",
+                        "Itens contados",
+                        "Sem divergência",
+                        "Acuracidade",
+                        "Erros movimentação",
+                        "Ajustes",
+                        "Planejadas",
+                        "Executadas",
+                        "Execução",
+                        "Observações",
+                      ],
                       ...inventories.map((item) => [
-                        item.date, item.counted, item.accurate,
-                        formatPercent(percentage(item.accurate, item.counted)),
-                        item.movements, item.adjustments, item.planned, item.executed,
-                        formatPercent(percentage(item.executed, item.planned)), item.notes,
+                        item.date,
+                        item.counted,
+                        item.accurate,
+                        formatPercent(
+                          percentage(item.accurate, item.counted)
+                        ),
+                        item.movements,
+                        item.adjustments,
+                        item.planned,
+                        item.executed,
+                        formatPercent(
+                          percentage(item.executed, item.planned)
+                        ),
+                        item.notes,
                       ]),
                     ])
                   }
@@ -1755,30 +2066,58 @@ export default function Home() {
                   Exportar inventário CSV
                 </button>
               </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[850px] text-left text-sm">
                   <thead className="bg-slate-100 text-xs uppercase text-slate-600">
                     <tr>
-                      <th className="p-3">Data</th><th className="p-3">Contados</th>
-                      <th className="p-3">Sem divergência</th><th className="p-3">Acuracidade</th>
-                      <th className="p-3">Erros movimentação</th><th className="p-3">Ajustes</th>
-                      <th className="p-3">Planejadas</th><th className="p-3">Executadas</th>
+                      <th className="p-3">Data</th>
+                      <th className="p-3">Contados</th>
+                      <th className="p-3">Sem divergência</th>
+                      <th className="p-3">Acuracidade</th>
+                      <th className="p-3">Erros movimentação</th>
+                      <th className="p-3">Ajustes</th>
+                      <th className="p-3">Planejadas</th>
+                      <th className="p-3">Executadas</th>
                       <th className="p-3">Execução</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {inventories.map((item) => (
                       <tr key={item.id}>
-                        <td className="p-3">{item.date}</td><td className="p-3">{item.counted}</td>
-                        <td className="p-3">{item.accurate}</td>
-                        <td className="p-3">{formatPercent(percentage(item.accurate, item.counted))}</td>
-                        <td className="p-3">{item.movements}</td><td className="p-3">{item.adjustments}</td>
-                        <td className="p-3">{item.planned}</td><td className="p-3">{item.executed}</td>
-                        <td className="p-3">{formatPercent(percentage(item.executed, item.planned))}</td>
+                        <td className="p-3">{item.date}</td>
+                        <td className="p-3">{formatNumber(item.counted)}</td>
+                        <td className="p-3">{formatNumber(item.accurate)}</td>
+                        <td className="p-3">
+                          {formatPercent(
+                            percentage(item.accurate, item.counted)
+                          )}
+                        </td>
+                        <td className="p-3">
+                          {formatNumber(item.movements)}
+                        </td>
+                        <td className="p-3">
+                          {formatNumber(item.adjustments)}
+                        </td>
+                        <td className="p-3">{formatNumber(item.planned)}</td>
+                        <td className="p-3">{formatNumber(item.executed)}</td>
+                        <td className="p-3">
+                          {formatPercent(
+                            percentage(item.executed, item.planned)
+                          )}
+                        </td>
                       </tr>
                     ))}
+
                     {inventories.length === 0 && (
-                      <tr><td colSpan={9} className="p-6 text-center text-slate-500">Nenhum inventário registrado.</td></tr>
+                      <tr>
+                        <td
+                          colSpan={9}
+                          className="p-6 text-center text-slate-500"
+                        >
+                          Nenhum inventário registrado.
+                        </td>
+                      </tr>
                     )}
                   </tbody>
                 </table>
@@ -1794,6 +2133,7 @@ export default function Home() {
     </main>
   );
 }
+
 
 
 
