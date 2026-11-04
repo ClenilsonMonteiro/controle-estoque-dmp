@@ -121,6 +121,49 @@ function SummaryCard({
   );
 }
 
+function MetricChart({
+  title,
+  data,
+  color = "bg-cyan-700",
+  formatValue = formatNumber,
+}: {
+  title: string;
+  data: { label: string; value: number }[];
+  color?: string;
+  formatValue?: (value: number) => string;
+}) {
+  const maxValue = Math.max(...data.map((item) => Math.abs(item.value)), 0);
+
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 className="mb-4 font-bold text-slate-800">{title}</h3>
+      {data.length === 0 ? (
+        <p className="py-4 text-sm text-slate-500">Sem dados para os filtros selecionados.</p>
+      ) : (
+        <div className="space-y-3">
+          {data.map((item, index) => {
+            const width = maxValue ? (Math.abs(item.value) / maxValue) * 100 : 0;
+
+            return (
+              <div key={`${item.label}-${index}`} className="grid grid-cols-[minmax(5rem,8rem)_1fr_auto] items-center gap-3">
+                <span className="truncate text-xs text-slate-600" title={item.label}>
+                  {item.label}
+                </span>
+                <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                  <div className={`h-full rounded-full ${color}`} style={{ width: `${width}%` }} />
+                </div>
+                <strong className="min-w-12 text-right text-xs text-slate-700">
+                  {formatValue(item.value)}
+                </strong>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </article>
+  );
+}
+
 function mapError(row: Record<string, unknown>): ErrorRecord {
   return {
     id: String(row.id),
@@ -174,6 +217,14 @@ export default function Home() {
   const [errorTo, setErrorTo] = useState("");
   const [inventoryFrom, setInventoryFrom] = useState("");
   const [inventoryTo, setInventoryTo] = useState("");
+  const [errorTypeFilter, setErrorTypeFilter] = useState("");
+  const [errorShiftFilter, setErrorShiftFilter] = useState("");
+  const [errorStatusFilter, setErrorStatusFilter] = useState("");
+  const [errorResponsibleFilter, setErrorResponsibleFilter] = useState("");
+  const [inventoryMinAccuracy, setInventoryMinAccuracy] = useState("");
+  const [inventoryMinMovements, setInventoryMinMovements] = useState("");
+  const [inventoryMinAdjustments, setInventoryMinAdjustments] = useState("");
+  const [inventoryMinExecution, setInventoryMinExecution] = useState("");
 
   const [errorForm, setErrorForm] = useState({
     date: "",
@@ -503,13 +554,24 @@ export default function Home() {
   const filteredErrors = errors.filter(
     (item) =>
       (!errorFrom || item.date >= errorFrom) &&
-      (!errorTo || item.date <= errorTo)
+      (!errorTo || item.date <= errorTo) &&
+      (!errorTypeFilter || item.type === errorTypeFilter) &&
+      (!errorShiftFilter || item.shift === errorShiftFilter) &&
+      (!errorStatusFilter || item.status === errorStatusFilter) &&
+      (!errorResponsibleFilter ||
+        item.responsible.toLowerCase().includes(errorResponsibleFilter.toLowerCase()))
   );
 
   const filteredInventories = inventories.filter(
     (item) =>
       (!inventoryFrom || item.date >= inventoryFrom) &&
-      (!inventoryTo || item.date <= inventoryTo)
+      (!inventoryTo || item.date <= inventoryTo) &&
+      (!inventoryMinAccuracy ||
+        percentage(item.accurate, item.counted) >= Number(inventoryMinAccuracy)) &&
+      (!inventoryMinMovements || item.movements >= Number(inventoryMinMovements)) &&
+      (!inventoryMinAdjustments || item.adjustments >= Number(inventoryMinAdjustments)) &&
+      (!inventoryMinExecution ||
+        percentage(item.executed, item.planned) >= Number(inventoryMinExecution))
   );
 
   const errorTypes = [
@@ -1071,15 +1133,40 @@ export default function Home() {
                     onChange={(event) => setErrorTo(event.target.value)}
                   />
                 </Field>
+                <Field label="Tipo de erro">
+                  <select className={inputClass} value={errorTypeFilter} onChange={(event) => setErrorTypeFilter(event.target.value)}>
+                    <option value="">Todos os tipos</option>
+                    {errorTypes.map((type) => <option key={type}>{type}</option>)}
+                  </select>
+                </Field>
+                <Field label="Turno">
+                  <select className={inputClass} value={errorShiftFilter} onChange={(event) => setErrorShiftFilter(event.target.value)}>
+                    <option value="">Todos os turnos</option>
+                    {["A", "B", "C", "D", "Não identificado"].map((shift) => <option key={shift}>{shift}</option>)}
+                  </select>
+                </Field>
+                <Field label="Status">
+                  <select className={inputClass} value={errorStatusFilter} onChange={(event) => setErrorStatusFilter(event.target.value)}>
+                    <option value="">Todos os status</option>
+                    {["Avaliando", "Em Andamento", "Concluído"].map((status) => <option key={status}>{status}</option>)}
+                  </select>
+                </Field>
+                <Field label="Responsável">
+                  <input className={inputClass} value={errorResponsibleFilter} onChange={(event) => setErrorResponsibleFilter(event.target.value)} placeholder="Filtrar por nome" />
+                </Field>
                 <button
                   className={secondaryButtonClass}
                   type="button"
                   onClick={() => {
                     setErrorFrom("");
                     setErrorTo("");
+                    setErrorTypeFilter("");
+                    setErrorShiftFilter("");
+                    setErrorStatusFilter("");
+                    setErrorResponsibleFilter("");
                   }}
                 >
-                  Limpar período
+                  Limpar filtros
                 </button>
               </div>
             </div>
@@ -1097,6 +1184,64 @@ export default function Home() {
               <SummaryCard
                 label="Ajustes realizados"
                 value={filteredErrors.filter((item) => item.adjustment === "Sim").length}
+              />
+            </div>
+
+            <div className="grid gap-5 md:grid-cols-2">
+              <MetricChart
+                title="Ocorrências por tipo"
+                data={errorTypes.map((type) => ({
+                  label: type,
+                  value: filteredErrors.filter((item) => item.type === type).length,
+                }))}
+              />
+              <MetricChart
+                title="Ocorrências por turno"
+                data={["A", "B", "C", "D", "Não identificado"].map((shift) => ({
+                  label: shift === "Não identificado" ? shift : `Turno ${shift}`,
+                  value: filteredErrors.filter((item) => item.shift === shift).length,
+                }))}
+                color="bg-indigo-600"
+              />
+              <MetricChart
+                title="Processos por status"
+                data={["Avaliando", "Em Andamento", "Concluído"].map((status) => ({
+                  label: status,
+                  value: filteredErrors.filter((item) => item.status === status).length,
+                }))}
+                color="bg-amber-500"
+              />
+              <MetricChart
+                title="Ajustes no sistema"
+                data={["Sim", "Não", "Pendente"].map((adjustment) => ({
+                  label: adjustment,
+                  value: filteredErrors.filter((item) => item.adjustment === adjustment).length,
+                }))}
+                color="bg-emerald-600"
+              />
+              <MetricChart
+                title="Quantidade física por ocorrência"
+                data={filteredErrors.slice(0, 10).map((item) => ({
+                  label: `${item.date} · ${item.code}`,
+                  value: item.physical,
+                }))}
+              />
+              <MetricChart
+                title="Quantidade no sistema por ocorrência"
+                data={filteredErrors.slice(0, 10).map((item) => ({
+                  label: `${item.date} · ${item.code}`,
+                  value: item.system,
+                }))}
+                color="bg-violet-600"
+              />
+              <MetricChart
+                title="Diferença física × sistema"
+                data={filteredErrors.slice(0, 10).map((item) => ({
+                  label: `${item.date} · ${item.code}`,
+                  value: item.physical - item.system,
+                }))}
+                color="bg-rose-600"
+                formatValue={(value) => value.toLocaleString("pt-BR", { signDisplay: "always" })}
               />
             </div>
 
@@ -1270,15 +1415,31 @@ export default function Home() {
                     onChange={(event) => setInventoryTo(event.target.value)}
                   />
                 </Field>
+                <Field label="Acuracidade mínima (%)">
+                  <input className={inputClass} type="number" min="0" max="100" value={inventoryMinAccuracy} onChange={(event) => setInventoryMinAccuracy(event.target.value)} placeholder="Ex.: 95" />
+                </Field>
+                <Field label="Erros de movimentação (mín.)">
+                  <input className={inputClass} type="number" min="0" value={inventoryMinMovements} onChange={(event) => setInventoryMinMovements(event.target.value)} placeholder="Ex.: 1" />
+                </Field>
+                <Field label="Ajustes de estoque (mín.)">
+                  <input className={inputClass} type="number" min="0" value={inventoryMinAdjustments} onChange={(event) => setInventoryMinAdjustments(event.target.value)} placeholder="Ex.: 1" />
+                </Field>
+                <Field label="Execução mínima (%)">
+                  <input className={inputClass} type="number" min="0" value={inventoryMinExecution} onChange={(event) => setInventoryMinExecution(event.target.value)} placeholder="Ex.: 90" />
+                </Field>
                 <button
                   className={secondaryButtonClass}
                   type="button"
                   onClick={() => {
                     setInventoryFrom("");
                     setInventoryTo("");
+                    setInventoryMinAccuracy("");
+                    setInventoryMinMovements("");
+                    setInventoryMinAdjustments("");
+                    setInventoryMinExecution("");
                   }}
                 >
-                  Limpar período
+                  Limpar filtros
                 </button>
               </div>
             </div>
@@ -1298,6 +1459,49 @@ export default function Home() {
                     <SummaryCard label="Execução de contagens" value={formatPercent(percentage(executed, planned))} />
                     <SummaryCard label="Erros de movimentação" value={formatNumber(movements)} />
                     <SummaryCard label="Ajustes de estoque" value={formatNumber(adjustments)} />
+                  </div>
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <MetricChart
+                      title="Itens contados por dia"
+                      data={filteredInventories.map((item) => ({ label: item.date, value: item.counted }))}
+                    />
+                    <MetricChart
+                      title="Itens sem divergência por dia"
+                      data={filteredInventories.map((item) => ({ label: item.date, value: item.accurate }))}
+                      color="bg-emerald-600"
+                    />
+                    <MetricChart
+                      title="Acuracidade por dia"
+                      data={filteredInventories.map((item) => ({ label: item.date, value: percentage(item.accurate, item.counted) }))}
+                      color="bg-indigo-600"
+                      formatValue={formatPercent}
+                    />
+                    <MetricChart
+                      title="Erros de movimentação por dia"
+                      data={filteredInventories.map((item) => ({ label: item.date, value: item.movements }))}
+                      color="bg-rose-600"
+                    />
+                    <MetricChart
+                      title="Ajustes de estoque por dia"
+                      data={filteredInventories.map((item) => ({ label: item.date, value: item.adjustments }))}
+                      color="bg-amber-500"
+                    />
+                    <MetricChart
+                      title="Contagens planejadas por dia"
+                      data={filteredInventories.map((item) => ({ label: item.date, value: item.planned }))}
+                      color="bg-sky-600"
+                    />
+                    <MetricChart
+                      title="Contagens executadas por dia"
+                      data={filteredInventories.map((item) => ({ label: item.date, value: item.executed }))}
+                      color="bg-teal-600"
+                    />
+                    <MetricChart
+                      title="Execução de contagens por dia"
+                      data={filteredInventories.map((item) => ({ label: item.date, value: percentage(item.executed, item.planned) }))}
+                      color="bg-violet-600"
+                      formatValue={formatPercent}
+                    />
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <h3 className="mb-3 font-bold">Resumo do período</h3>
@@ -1474,6 +1678,7 @@ export default function Home() {
     </main>
   );
 }
+
 
 
 
