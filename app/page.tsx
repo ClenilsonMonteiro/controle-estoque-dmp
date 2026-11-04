@@ -153,6 +153,26 @@ function formatNumber(value: number) {
   return value.toLocaleString("pt-BR");
 }
 
+function formatDate(value: string) {
+  if (!value) return "";
+
+  const [year, month, day] = value.slice(0, 10).split("-");
+  return year && month && day ? `${day}/${month}/${year}` : value;
+}
+
+function statusClass(status: string) {
+  switch (status) {
+    case "Avaliando":
+      return "inline-flex rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-semibold text-yellow-800";
+    case "Em Andamento":
+      return "inline-flex rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-800";
+    case "Concluído":
+      return "inline-flex rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800";
+    default:
+      return "inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700";
+  }
+}
+
 function escapeCsv(value: unknown) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
@@ -322,7 +342,7 @@ function MetricChart({
                       >
                         {formatValue(item.value)}
                       </text>
-                      <title>{`${item.label}: ${formatValue(item.value)}`}</title>
+                      <title>{`${formatDate(item.label)}: ${formatValue(item.value)}`}</title>
                     </g>
                   );
                 })}
@@ -379,7 +399,7 @@ function MetricChart({
                   fontSize="11"
                   fill="#64748b"
                 >
-                  {item.label.length > 10 ? item.label.slice(5) : item.label}
+                  {formatDate(item.label)}
                 </text>
               ) : null
             )}
@@ -1248,7 +1268,7 @@ export default function Home() {
                   <tbody className="divide-y divide-slate-100">
                     {errors.map((item) => (
                       <tr key={item.id}>
-                        <td className="p-3">{item.date}</td>
+                        <td className="p-3">{formatDate(item.date)}</td>
                         <td className="p-3">
                           {item.street} / {item.building} / {item.level} /{" "}
                           {item.apartment}
@@ -1263,7 +1283,9 @@ export default function Home() {
                         <td className="p-3">{item.adjustment}</td>
                         <td className="p-3">{item.shift}</td>
                         <td className="p-3">{item.responsible}</td>
-                        <td className="p-3">{item.status}</td>
+                        <td className="p-3">
+  <span className={statusClass(item.status)}>{item.status}</span>
+</td>
                         <td className="p-3">
                           <div className="flex flex-col items-start gap-2">
                             <button
@@ -1596,7 +1618,7 @@ export default function Home() {
                   <tbody className="divide-y divide-slate-100">
                     {inventories.map((item) => (
                       <tr key={item.id}>
-                        <td className="p-3">{item.date}</td>
+                        <td className="p-3">{formatDate(item.date)}</td>
                         <td className="p-3">{formatNumber(item.counted)}</td>
                         <td className="p-3">{formatNumber(item.accurate)}</td>
                         <td className="p-3">
@@ -1853,7 +1875,7 @@ export default function Home() {
                         <tbody className="divide-y divide-slate-100">
                           {filteredInventories.map((item) => (
                             <tr key={item.id}>
-                              <td className="p-3">{item.date}</td>
+                              <td className="p-3">{formatDate(item.date)}</td>
                               <td className="p-3">
                                 {formatNumber(item.counted)}
                               </td>
@@ -1941,7 +1963,7 @@ export default function Home() {
                         "Observações",
                       ],
                       ...errors.map((item) => [
-                        item.date,
+                        formatDate(item.date),
                         item.street,
                         item.building,
                         item.level,
@@ -1985,7 +2007,7 @@ export default function Home() {
                   <tbody className="divide-y divide-slate-100">
                     {errors.map((item) => (
                       <tr key={item.id}>
-                        <td className="p-3">{item.date}</td>
+                        <td className="p-3">{formatDate(item.date)}</td>
                         <td className="p-3">{item.street}</td>
                         <td className="p-3">{item.building}</td>
                         <td className="p-3">{item.level}</td>
@@ -1997,7 +2019,9 @@ export default function Home() {
                           {formatNumber(item.physical - item.system)}
                         </td>
                         <td className="p-3">{item.type}</td>
-                        <td className="p-3">{item.status}</td>
+                        <td className="p-3">
+  <span className={statusClass(item.status)}>{item.status}</span>
+</td>
                       </tr>
                     ))}
 
@@ -2045,7 +2069,7 @@ export default function Home() {
                         "Observações",
                       ],
                       ...inventories.map((item) => [
-                        item.date,
+                        formatDate(item.date),
                         item.counted,
                         item.accurate,
                         formatPercent(
@@ -2085,7 +2109,7 @@ export default function Home() {
                   <tbody className="divide-y divide-slate-100">
                     {inventories.map((item) => (
                       <tr key={item.id}>
-                        <td className="p-3">{item.date}</td>
+                        <td className="p-3">{formatDate(item.date)}</td>
                         <td className="p-3">{formatNumber(item.counted)}</td>
                         <td className="p-3">{formatNumber(item.accurate)}</td>
                         <td className="p-3">
@@ -2133,6 +2157,7 @@ export default function Home() {
     </main>
   );
 }
+
 
 
 
