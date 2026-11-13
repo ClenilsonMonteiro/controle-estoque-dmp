@@ -340,6 +340,20 @@ function LineChart({
                     stroke="white"
                     strokeWidth="2"
                   />
+                  <text
+                    x={x}
+                    y={Math.max(15, y - 11)}
+                    textAnchor="middle"
+                    fontSize="11"
+                    fontWeight="700"
+                    fill="#0f172a"
+                    stroke="white"
+                    strokeWidth="3"
+                    paintOrder="stroke"
+                    strokeLinejoin="round"
+                  >
+                    {formatValue(point.value)}
+                  </text>
                   <title>
                     {`${formatDate(point.label)}: ${formatValue(point.value)}`}
                   </title>
