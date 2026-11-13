@@ -92,6 +92,12 @@ type ErrorColumn = {
   key: string;
   label: string;
   value: (item: ErrorRecord) => string;
+  numeric?: boolean;
+};
+
+type ChartPoint = {
+  label: string;
+  value: number;
 };
 
 const inputClass =
@@ -229,6 +235,139 @@ function SummaryCard({
   );
 }
 
+function LineChart({
+  title,
+  data,
+  formatValue = formatNumber,
+  color = "#0e7490",
+}: {
+  title: string;
+  data: ChartPoint[];
+  formatValue?: (value: number) => string;
+  color?: string;
+}) {
+  const width = 760;
+  const height = 320;
+  const left = 76;
+  const right = 24;
+  const top = 30;
+  const bottom = 58;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+  const maxValue = Math.max(...data.map((point) => point.value), 0) || 1;
+  const dateLabelStep = Math.max(1, Math.ceil(data.length / 8));
+
+  const pointX = (index: number) =>
+    data.length === 1
+      ? left + plotWidth / 2
+      : left + (index / (data.length - 1)) * plotWidth;
+
+  const pointY = (value: number) =>
+    top + plotHeight - (value / maxValue) * plotHeight;
+
+  const linePath = data
+    .map(
+      (point, index) =>
+        `${index === 0 ? "M" : "L"} ${pointX(index)} ${pointY(point.value)}`
+    )
+    .join(" ");
+
+  return (
+    <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 className="mb-3 font-bold text-slate-800">{title}</h3>
+
+      {data.length === 0 ? (
+        <p className="py-4 text-sm text-slate-500">
+          Sem dados para os filtros selecionados.
+        </p>
+      ) : (
+        <div className="w-full overflow-x-auto">
+          <svg
+            className="h-72 min-w-[560px] w-full"
+            viewBox={`0 0 ${width} ${height}`}
+            role="img"
+            aria-label={title}
+          >
+            {[0, 1, 2, 3, 4].map((step) => {
+              const y = top + plotHeight - (step / 4) * plotHeight;
+              const value = (maxValue * step) / 4;
+
+              return (
+                <g key={step}>
+                  <line
+                    x1={left}
+                    x2={width - right}
+                    y1={y}
+                    y2={y}
+                    stroke="#e2e8f0"
+                    strokeDasharray={step === 0 ? undefined : "4 4"}
+                  />
+                  <text
+                    x={left - 10}
+                    y={y + 4}
+                    textAnchor="end"
+                    fontSize="11"
+                    fill="#64748b"
+                  >
+                    {formatValue(value)}
+                  </text>
+                </g>
+              );
+            })}
+
+            {data.length > 1 && (
+              <path
+                d={linePath}
+                fill="none"
+                stroke={color}
+                strokeWidth="3"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            )}
+
+            {data.map((point, index) => {
+              const x = pointX(index);
+              const y = pointY(point.value);
+
+              return (
+                <g key={`${point.label}-${index}`}>
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r="5"
+                    fill={color}
+                    stroke="white"
+                    strokeWidth="2"
+                  />
+                  <title>
+                    {`${formatDate(point.label)}: ${formatValue(point.value)}`}
+                  </title>
+                </g>
+              );
+            })}
+
+            {data.map((point, index) =>
+              index % dateLabelStep === 0 || index === data.length - 1 ? (
+                <text
+                  key={`${point.label}-axis-${index}`}
+                  x={pointX(index)}
+                  y={height - 16}
+                  textAnchor="middle"
+                  fontSize="11"
+                  fill="#64748b"
+                >
+                  {formatDate(point.label)}
+                </text>
+              ) : null
+            )}
+          </svg>
+        </div>
+      )}
+    </article>
+  );
+}
+
 function mapError(row: Record<string, unknown>): ErrorRecord {
   return {
     id: String(row.id),
@@ -298,80 +437,149 @@ function ErrorFields({
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <Field label="Data">
-        <input className={inputClass} type="date" required value={value.date}
-          onChange={(event) => update("date", event.target.value)} />
+        <input
+          className={inputClass}
+          type="date"
+          required
+          value={value.date}
+          onChange={(event) => update("date", event.target.value)}
+        />
       </Field>
       <Field label="Rua">
-        <input className={inputClass} required value={value.street}
-          onChange={(event) => update("street", event.target.value)} />
+        <input
+          className={inputClass}
+          required
+          value={value.street}
+          onChange={(event) => update("street", event.target.value)}
+        />
       </Field>
       <Field label="Prédio">
-        <input className={inputClass} required value={value.building}
-          onChange={(event) => update("building", event.target.value)} />
+        <input
+          className={inputClass}
+          required
+          value={value.building}
+          onChange={(event) => update("building", event.target.value)}
+        />
       </Field>
       <Field label="Nível">
-        <input className={inputClass} required value={value.level}
-          onChange={(event) => update("level", event.target.value)} />
+        <input
+          className={inputClass}
+          required
+          value={value.level}
+          onChange={(event) => update("level", event.target.value)}
+        />
       </Field>
       <Field label="Apartamento">
-        <input className={inputClass} required value={value.apartment}
-          onChange={(event) => update("apartment", event.target.value)} />
+        <input
+          className={inputClass}
+          required
+          value={value.apartment}
+          onChange={(event) => update("apartment", event.target.value)}
+        />
       </Field>
       <Field label="Código do produto">
-        <input className={inputClass} required value={value.code}
-          onChange={(event) => update("code", event.target.value)} />
+        <input
+          className={inputClass}
+          required
+          value={value.code}
+          onChange={(event) => update("code", event.target.value)}
+        />
       </Field>
       <Field label="Quantidade física">
-        <input className={inputClass} type="number" min="0" step="any" required
+        <input
+          className={inputClass}
+          type="number"
+          min="0"
+          step="any"
+          required
           value={value.physical}
-          onChange={(event) => update("physical", event.target.value)} />
+          onChange={(event) => update("physical", event.target.value)}
+        />
       </Field>
       <Field label="Quantidade no sistema">
-        <input className={inputClass} type="number" min="0" step="any" required
+        <input
+          className={inputClass}
+          type="number"
+          min="0"
+          step="any"
+          required
           value={value.system}
-          onChange={(event) => update("system", event.target.value)} />
+          onChange={(event) => update("system", event.target.value)}
+        />
       </Field>
       <Field label="Tipo de erro">
-        <select className={inputClass} required value={value.type}
-          onChange={(event) => update("type", event.target.value)}>
+        <select
+          className={inputClass}
+          required
+          value={value.type}
+          onChange={(event) => update("type", event.target.value)}
+        >
           <option value="">Selecione</option>
-          {errorTypes.map((type) => <option key={type}>{type}</option>)}
+          {errorTypes.map((type) => (
+            <option key={type}>{type}</option>
+          ))}
         </select>
       </Field>
       {value.type === "Múltiplos produtos" && (
         <Field label="Códigos dos produtos no endereço">
-          <input className={inputClass} required
+          <input
+            className={inputClass}
+            required
             placeholder="Separe os códigos por vírgula"
             value={value.productCodes}
-            onChange={(event) => update("productCodes", event.target.value)} />
+            onChange={(event) => update("productCodes", event.target.value)}
+          />
         </Field>
       )}
       <Field label="Ajuste no sistema?">
-        <select className={inputClass} value={value.adjustment}
-          onChange={(event) => update("adjustment", event.target.value)}>
-          <option>Não</option><option>Sim</option><option>Pendente</option>
+        <select
+          className={inputClass}
+          value={value.adjustment}
+          onChange={(event) => update("adjustment", event.target.value)}
+        >
+          <option>Não</option>
+          <option>Sim</option>
+          <option>Pendente</option>
         </select>
       </Field>
       <Field label="Turno">
-        <select className={inputClass} required value={value.shift}
-          onChange={(event) => update("shift", event.target.value)}>
+        <select
+          className={inputClass}
+          required
+          value={value.shift}
+          onChange={(event) => update("shift", event.target.value)}
+        >
           <option value="">Selecione</option>
-          {shifts.map((shift) => <option key={shift}>{shift}</option>)}
+          {shifts.map((shift) => (
+            <option key={shift}>{shift}</option>
+          ))}
         </select>
       </Field>
       <Field label="Nome do responsável">
-        <input className={inputClass} required value={value.responsible}
-          onChange={(event) => update("responsible", event.target.value)} />
+        <input
+          className={inputClass}
+          required
+          value={value.responsible}
+          onChange={(event) => update("responsible", event.target.value)}
+        />
       </Field>
       <Field label="Status do processo">
-        <select className={inputClass} value={value.status}
-          onChange={(event) => update("status", event.target.value)}>
-          {statuses.map((status) => <option key={status}>{status}</option>)}
+        <select
+          className={inputClass}
+          value={value.status}
+          onChange={(event) => update("status", event.target.value)}
+        >
+          {statuses.map((status) => (
+            <option key={status}>{status}</option>
+          ))}
         </select>
       </Field>
       <Field label="Observações">
-        <input className={inputClass} value={value.notes}
-          onChange={(event) => update("notes", event.target.value)} />
+        <input
+          className={inputClass}
+          value={value.notes}
+          onChange={(event) => update("notes", event.target.value)}
+        />
       </Field>
     </div>
   );
@@ -437,8 +645,30 @@ function FilterInput({
   );
 }
 
-function matchesFilter(value: string, filter: string) {
-  return value.toLocaleLowerCase("pt-BR").includes(filter.trim().toLocaleLowerCase("pt-BR"));
+function matchesFilter(value: string, filter: string, numeric = false) {
+  const normalizedFilter = filter.trim();
+
+  if (normalizedFilter === "") return true;
+
+  if (numeric) {
+    const normalizedValue = Number(value);
+    const normalizedNumericFilter = Number(
+      normalizedFilter.replace(",", ".")
+    );
+
+    if (
+      !Number.isNaN(normalizedValue) &&
+      !Number.isNaN(normalizedNumericFilter)
+    ) {
+      return normalizedValue === normalizedNumericFilter;
+    }
+
+    return false;
+  }
+
+  return value
+    .toLocaleLowerCase("pt-BR")
+    .includes(normalizedFilter.toLocaleLowerCase("pt-BR"));
 }
 
 const recordColumns: ErrorColumn[] = [
@@ -448,18 +678,37 @@ const recordColumns: ErrorColumn[] = [
   { key: "level", label: "Nível", value: (item) => item.level },
   { key: "apartment", label: "Apartamento", value: (item) => item.apartment },
   { key: "code", label: "Código", value: (item) => item.code },
-  { key: "physical", label: "Físico", value: (item) => String(item.physical) },
-  { key: "system", label: "Sistema", value: (item) => String(item.system) },
+  {
+    key: "physical",
+    label: "Físico",
+    value: (item) => String(item.physical),
+    numeric: true,
+  },
+  {
+    key: "system",
+    label: "Sistema",
+    value: (item) => String(item.system),
+    numeric: true,
+  },
   {
     key: "difference",
     label: "Diferença",
     value: (item) => String(item.physical - item.system),
+    numeric: true,
   },
   { key: "type", label: "Tipo", value: (item) => item.type },
-  { key: "productCodes", label: "Códigos dos produtos", value: (item) => item.productCodes },
+  {
+    key: "productCodes",
+    label: "Códigos dos produtos",
+    value: (item) => item.productCodes,
+  },
   { key: "adjustment", label: "Ajuste", value: (item) => item.adjustment },
   { key: "shift", label: "Turno", value: (item) => item.shift },
-  { key: "responsible", label: "Responsável", value: (item) => item.responsible },
+  {
+    key: "responsible",
+    label: "Responsável",
+    value: (item) => item.responsible,
+  },
   { key: "status", label: "Status", value: (item) => item.status },
   { key: "notes", label: "Observações", value: (item) => item.notes },
 ];
@@ -471,7 +720,8 @@ export default function Home() {
   const [editingError, setEditingError] = useState<ErrorRecord | null>(null);
   const [editForm, setEditForm] = useState<ErrorForm>(emptyErrorForm);
   const [errorForm, setErrorForm] = useState<ErrorForm>(emptyErrorForm);
-  const [inventoryForm, setInventoryForm] = useState<InventoryForm>(emptyInventoryForm);
+  const [inventoryForm, setInventoryForm] =
+    useState<InventoryForm>(emptyInventoryForm);
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -494,27 +744,50 @@ export default function Home() {
   const [inventoryMinAdjustments, setInventoryMinAdjustments] = useState("");
   const [inventoryMinExecution, setInventoryMinExecution] = useState("");
 
-  const [recordFilters, setRecordFilters] = useState<Record<string, string>>({});
-  const [baseErrorFilters, setBaseErrorFilters] = useState<Record<string, string>>({});
+  const [recordFilters, setRecordFilters] = useState<Record<string, string>>(
+    {}
+  );
+  const [baseErrorFilters, setBaseErrorFilters] = useState<
+    Record<string, string>
+  >({});
 
   useEffect(() => {
     let active = true;
 
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (!active) return;
-      if (error) setMessage(error.message);
-      setUser(data.session?.user
-        ? { id: data.session.user.id, email: data.session.user.email }
-        : null);
-      setAuthReady(true);
-    }).catch((error: unknown) => {
-      if (!active) return;
-      setMessage(error instanceof Error ? error.message : "Não foi possível verificar a sessão.");
-      setAuthReady(true);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) setMessage(error.message);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ? { id: session.user.id, email: session.user.email } : null);
+        setUser(
+          data.session?.user
+            ? {
+                id: data.session.user.id,
+                email: data.session.user.email,
+              }
+            : null
+        );
+        setAuthReady(true);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível verificar a sessão."
+        );
+        setAuthReady(true);
+      });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(
+        session?.user
+          ? { id: session.user.id, email: session.user.email }
+          : null
+      );
     });
 
     return () => {
@@ -526,7 +799,10 @@ export default function Home() {
   useEffect(() => {
     const today = localToday();
     setErrorForm((current) => ({ ...current, date: current.date || today }));
-    setInventoryForm((current) => ({ ...current, date: current.date || today }));
+    setInventoryForm((current) => ({
+      ...current,
+      date: current.date || today,
+    }));
   }, []);
 
   const loadData = useCallback(async () => {
@@ -536,23 +812,33 @@ export default function Home() {
 
     const [errorsResult, inventoriesResult] = await Promise.all([
       supabase.from("errors").select("*").order("date", { ascending: false }),
-      supabase.from("inventories").select("*").order("date", { ascending: false }),
+      supabase
+        .from("inventories")
+        .select("*")
+        .order("date", { ascending: false }),
     ]);
 
     if (errorsResult.error || inventoriesResult.error) {
-      setMessage(errorsResult.error?.message ?? inventoriesResult.error?.message ?? "Não foi possível carregar os dados.");
+      setMessage(
+        errorsResult.error?.message ??
+          inventoriesResult.error?.message ??
+          "Não foi possível carregar os dados."
+      );
       setLoading(false);
       return;
     }
 
     setErrors((errorsResult.data ?? []).map((row) => mapError(row)));
-    setInventories((inventoriesResult.data ?? []).map((row) => mapInventory(row)));
+    setInventories(
+      (inventoriesResult.data ?? []).map((row) => mapInventory(row))
+    );
     setLoading(false);
   }, [user]);
 
   useEffect(() => {
-    if (user) void loadData();
-    else {
+    if (user) {
+      void loadData();
+    } else {
       setErrors([]);
       setInventories([]);
     }
@@ -561,20 +847,24 @@ export default function Home() {
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
+
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     });
+
     if (error) setMessage(error.message);
   }
 
   async function signUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
+
     if (password.length < 6) {
       setMessage("A senha precisa ter pelo menos 6 caracteres.");
       return;
     }
+
     if (password !== confirmPassword) {
       setMessage("As senhas não coincidem.");
       return;
@@ -594,7 +884,9 @@ export default function Home() {
     setIsRegistering(false);
     setPassword("");
     setConfirmPassword("");
-    setMessage("Cadastro criado. Se for solicitada a confirmação, confira seu e-mail e depois entre.");
+    setMessage(
+      "Cadastro criado. Se for solicitada a confirmação, confira seu e-mail e depois entre."
+    );
   }
 
   async function signOut() {
@@ -639,23 +931,26 @@ export default function Home() {
     if (!editingError) return;
     setMessage("");
 
-    const { error } = await supabase.from("errors").update({
-      date: editForm.date,
-      street: editForm.street,
-      building: editForm.building,
-      level: editForm.level,
-      apartment: editForm.apartment,
-      code: editForm.code,
-      physical: Number(editForm.physical),
-      system: Number(editForm.system),
-      type: editForm.type,
-      product_codes: editForm.productCodes.trim(),
-      adjustment: editForm.adjustment,
-      shift: editForm.shift,
-      responsible: editForm.responsible,
-      status: editForm.status,
-      notes: editForm.notes,
-    }).eq("id", editingError.id);
+    const { error } = await supabase
+      .from("errors")
+      .update({
+        date: editForm.date,
+        street: editForm.street,
+        building: editForm.building,
+        level: editForm.level,
+        apartment: editForm.apartment,
+        code: editForm.code,
+        physical: Number(editForm.physical),
+        system: Number(editForm.system),
+        type: editForm.type,
+        product_codes: editForm.productCodes.trim(),
+        adjustment: editForm.adjustment,
+        shift: editForm.shift,
+        responsible: editForm.responsible,
+        status: editForm.status,
+        notes: editForm.notes,
+      })
+      .eq("id", editingError.id);
 
     if (error) {
       setMessage(`Não foi possível atualizar o erro: ${error.message}`);
@@ -670,28 +965,36 @@ export default function Home() {
 
   async function removeError(id: string) {
     if (!confirm("Excluir este registro de erro?")) return;
+
     const { error } = await supabase.from("errors").delete().eq("id", id);
     if (error) {
       setMessage(`Não foi possível excluir o erro: ${error.message}`);
       return;
     }
+
     await loadData();
   }
 
   async function addInventory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
+
     const counted = Number(inventoryForm.counted);
     const accurate = Number(inventoryForm.accurate);
     const planned = Number(inventoryForm.planned);
     const executed = Number(inventoryForm.executed);
 
     if (accurate > counted) {
-      setMessage("Itens sem divergência não podem ser maiores que os itens contados.");
+      setMessage(
+        "Itens sem divergência não podem ser maiores que os itens contados."
+      );
       return;
     }
+
     if (executed > planned) {
-      setMessage("Contagens executadas não podem ser maiores que as planejadas.");
+      setMessage(
+        "Contagens executadas não podem ser maiores que as planejadas."
+      );
       return;
     }
 
@@ -718,51 +1021,169 @@ export default function Home() {
 
   async function removeInventory(id: string) {
     if (!confirm("Excluir este registro de inventário?")) return;
-    const { error } = await supabase.from("inventories").delete().eq("id", id);
+
+    const { error } = await supabase
+      .from("inventories")
+      .delete()
+      .eq("id", id);
+
     if (error) {
       setMessage(`Não foi possível excluir o inventário: ${error.message}`);
       return;
     }
+
     await loadData();
   }
 
-  const filteredErrors = useMemo(() => errors.filter((item) =>
-    (!errorFrom || item.date >= errorFrom) &&
-    (!errorTo || item.date <= errorTo) &&
-    (!errorTypeFilter || item.type === errorTypeFilter) &&
-    (!errorShiftFilter || item.shift === errorShiftFilter) &&
-    (!errorStatusFilter || item.status === errorStatusFilter) &&
-    (!errorResponsibleFilter || item.responsible.toLowerCase().includes(errorResponsibleFilter.toLowerCase()))
-  ), [errors, errorFrom, errorTo, errorTypeFilter, errorShiftFilter, errorStatusFilter, errorResponsibleFilter]);
+  const filteredErrors = useMemo(
+    () =>
+      errors.filter(
+        (item) =>
+          (!errorFrom || item.date >= errorFrom) &&
+          (!errorTo || item.date <= errorTo) &&
+          (!errorTypeFilter || item.type === errorTypeFilter) &&
+          (!errorShiftFilter || item.shift === errorShiftFilter) &&
+          (!errorStatusFilter || item.status === errorStatusFilter) &&
+          (!errorResponsibleFilter ||
+            item.responsible
+              .toLowerCase()
+              .includes(errorResponsibleFilter.toLowerCase()))
+      ),
+    [
+      errors,
+      errorFrom,
+      errorTo,
+      errorTypeFilter,
+      errorShiftFilter,
+      errorStatusFilter,
+      errorResponsibleFilter,
+    ]
+  );
 
-  const filteredRecordErrors = useMemo(() => errors.filter((item) =>
-    recordColumns.every((column) => matchesFilter(column.value(item), recordFilters[column.key] ?? ""))
-  ), [errors, recordFilters]);
+  const filteredRecordErrors = useMemo(
+    () =>
+      errors.filter((item) =>
+        recordColumns.every((column) =>
+          matchesFilter(
+            column.value(item),
+            recordFilters[column.key] ?? "",
+            column.numeric
+          )
+        )
+      ),
+    [errors, recordFilters]
+  );
 
-  const filteredBaseErrors = useMemo(() => errors.filter((item) =>
-    recordColumns.every((column) => matchesFilter(column.value(item), baseErrorFilters[column.key] ?? ""))
-  ), [errors, baseErrorFilters]);
+  const filteredBaseErrors = useMemo(
+    () =>
+      errors.filter((item) =>
+        recordColumns.every((column) =>
+          matchesFilter(
+            column.value(item),
+            baseErrorFilters[column.key] ?? "",
+            column.numeric
+          )
+        )
+      ),
+    [errors, baseErrorFilters]
+  );
 
-  const filteredInventories = useMemo(() => inventories.filter((item) =>
-    (!inventoryFrom || item.date >= inventoryFrom) &&
-    (!inventoryTo || item.date <= inventoryTo) &&
-    (!inventoryMinAccuracy || percentage(item.accurate, item.counted) >= Number(inventoryMinAccuracy)) &&
-    (!inventoryMinMovements || item.movements >= Number(inventoryMinMovements)) &&
-    (!inventoryMinAdjustments || item.adjustments >= Number(inventoryMinAdjustments)) &&
-    (!inventoryMinExecution || percentage(item.executed, item.planned) >= Number(inventoryMinExecution))
-  ), [inventories, inventoryFrom, inventoryTo, inventoryMinAccuracy, inventoryMinMovements, inventoryMinAdjustments, inventoryMinExecution]);
+  const filteredInventories = useMemo(
+    () =>
+      inventories.filter(
+        (item) =>
+          (!inventoryFrom || item.date >= inventoryFrom) &&
+          (!inventoryTo || item.date <= inventoryTo) &&
+          (inventoryMinAccuracy === "" ||
+            percentage(item.accurate, item.counted) >=
+              Number(inventoryMinAccuracy)) &&
+          (inventoryMinMovements === "" ||
+            item.movements >= Number(inventoryMinMovements)) &&
+          (inventoryMinAdjustments === "" ||
+            item.adjustments >= Number(inventoryMinAdjustments)) &&
+          (inventoryMinExecution === "" ||
+            percentage(item.executed, item.planned) >=
+              Number(inventoryMinExecution))
+      ),
+    [
+      inventories,
+      inventoryFrom,
+      inventoryTo,
+      inventoryMinAccuracy,
+      inventoryMinMovements,
+      inventoryMinAdjustments,
+      inventoryMinExecution,
+    ]
+  );
+
+  const errorDailyData = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    filteredErrors.forEach((item) => {
+      counts.set(item.date, (counts.get(item.date) ?? 0) + 1);
+    });
+
+    return Array.from(counts, ([label, value]) => ({ label, value })).sort(
+      (a, b) => a.label.localeCompare(b.label)
+    );
+  }, [filteredErrors]);
+
+  const inventoryDailyData = useMemo(() => {
+    const byDate = new Map<
+      string,
+      {
+        counted: number;
+        accurate: number;
+        movements: number;
+        planned: number;
+        executed: number;
+        adjustments: number;
+      }
+    >();
+
+    filteredInventories.forEach((item) => {
+      const totals = byDate.get(item.date) ?? {
+        counted: 0,
+        accurate: 0,
+        movements: 0,
+        planned: 0,
+        executed: 0,
+        adjustments: 0,
+      };
+
+      totals.counted += item.counted;
+      totals.accurate += item.accurate;
+      totals.movements += item.movements;
+      totals.planned += item.planned;
+      totals.executed += item.executed;
+      totals.adjustments += item.adjustments;
+      byDate.set(item.date, totals);
+    });
+
+    return Array.from(byDate, ([date, totals]) => ({
+      date,
+      ...totals,
+      accuracyPercent: percentage(totals.accurate, totals.counted),
+      executionPercent: percentage(totals.executed, totals.planned),
+    })).sort((a, b) => a.date.localeCompare(b.date));
+  }, [filteredInventories]);
 
   function makeRanking(getLabel: (item: ErrorRecord) => string) {
     const counts = new Map<string, number>();
+
     filteredErrors.forEach((item) => {
       const label = getLabel(item).trim() || "Não informado";
       counts.set(label, (counts.get(label) ?? 0) + 1);
     });
+
     return Array.from(counts, ([label, count]) => ({
       label,
       count,
       percent: percentage(count, filteredErrors.length),
-    })).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR"));
+    })).sort(
+      (a, b) =>
+        b.count - a.count || a.label.localeCompare(b.label, "pt-BR")
+    );
   }
 
   const responsibleRanking = makeRanking((item) => item.responsible);
@@ -778,14 +1199,20 @@ export default function Home() {
   ];
 
   if (!authReady) {
-    return <main className="grid min-h-screen place-items-center bg-slate-50 p-4 text-slate-700">Verificando acesso...</main>;
+    return (
+      <main className="grid min-h-screen place-items-center bg-slate-50 p-4 text-slate-700">
+        Verificando acesso...
+      </main>
+    );
   }
 
   if (!user) {
     return (
       <main className="grid min-h-screen place-items-center bg-slate-50 px-4 py-8 text-slate-900">
         <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-wide text-cyan-800">DMP · Controle interno</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-cyan-800">
+            DMP · Controle interno
+          </p>
           <h1 className="mt-2 text-2xl font-bold">Controle de Estoque</h1>
           <p className="mt-2 text-sm text-slate-600">
             {isRegistering
@@ -793,29 +1220,56 @@ export default function Home() {
               : "Entre com seu e-mail e senha. Ainda não tem cadastro? Use a opção abaixo para criar sua conta."}
           </p>
 
-          {message && <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-800">{message}</p>}
-
-          {isRegistering && (
-            <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              O cadastro está aberto. Compartilhe o endereço do sistema somente com pessoas autorizadas.
+          {message && (
+            <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-800">
+              {message}
             </p>
           )}
 
-          <form className="mt-5 space-y-4" onSubmit={isRegistering ? signUp : signIn}>
+          {isRegistering && (
+            <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              O cadastro está aberto. Compartilhe o endereço do sistema somente
+              com pessoas autorizadas.
+            </p>
+          )}
+
+          <form
+            className="mt-5 space-y-4"
+            onSubmit={isRegistering ? signUp : signIn}
+          >
             <Field label="E-mail">
-              <input className={inputClass} type="email" required autoComplete="email" value={email}
-                onChange={(event) => setEmail(event.target.value)} />
+              <input
+                className={inputClass}
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
             </Field>
             <Field label="Senha">
-              <input className={inputClass} type="password" required
-                autoComplete={isRegistering ? "new-password" : "current-password"}
-                value={password} onChange={(event) => setPassword(event.target.value)} />
+              <input
+                className={inputClass}
+                type="password"
+                required
+                autoComplete={
+                  isRegistering ? "new-password" : "current-password"
+                }
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
             </Field>
             {isRegistering && (
               <Field label="Confirme a senha">
-                <input className={inputClass} type="password" required minLength={6}
-                  autoComplete="new-password" value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)} />
+                <input
+                  className={inputClass}
+                  type="password"
+                  required
+                  minLength={6}
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                />
               </Field>
             )}
             <button className={`${buttonClass} w-full`} type="submit">
@@ -823,14 +1277,19 @@ export default function Home() {
             </button>
           </form>
 
-          <button className={`${secondaryButtonClass} mt-4 w-full`} type="button"
+          <button
+            className={`${secondaryButtonClass} mt-4 w-full`}
+            type="button"
             onClick={() => {
               setIsRegistering((current) => !current);
               setMessage("");
               setPassword("");
               setConfirmPassword("");
-            }}>
-            {isRegistering ? "Já tem cadastro? Voltar para entrar" : "Ainda não tem cadastro? Criar cadastro"}
+            }}
+          >
+            {isRegistering
+              ? "Já tem cadastro? Voltar para entrar"
+              : "Ainda não tem cadastro? Criar cadastro"}
           </button>
         </section>
       </main>
@@ -843,27 +1302,61 @@ export default function Home() {
         <header className="rounded-2xl bg-gradient-to-r from-slate-900 to-cyan-800 p-6 text-white shadow">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-cyan-100">DMP · Controle interno</p>
+              <p className="text-sm font-semibold uppercase tracking-wide text-cyan-100">
+                DMP · Controle interno
+              </p>
               <h1 className="mt-2 text-3xl font-bold">Controle de Estoque</h1>
-              <p className="mt-2 text-sm text-cyan-50">Registro de endereçamento, divergências, inventários e indicadores.</p>
+              <p className="mt-2 text-sm text-cyan-50">
+                Registro de endereçamento, divergências, inventários e
+                indicadores.
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-cyan-50">{user.email}</span>
-              <button className="rounded-lg border border-white/40 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10"
-                type="button" onClick={() => void loadData()}>Atualizar</button>
-              <button className="rounded-lg border border-white/40 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10"
-                type="button" onClick={() => void signOut()}>Sair</button>
+              <button
+                className="rounded-lg border border-white/40 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10"
+                type="button"
+                onClick={() => void loadData()}
+              >
+                Atualizar
+              </button>
+              <button
+                className="rounded-lg border border-white/40 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10"
+                type="button"
+                onClick={() => void signOut()}
+              >
+                Sair
+              </button>
             </div>
           </div>
         </header>
 
-        {message && <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{message}</div>}
-        {loading && <p className="mt-3 text-sm text-slate-600">Carregando dados do Supabase...</p>}
+        {message && (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            {message}
+          </div>
+        )}
+        {loading && (
+          <p className="mt-3 text-sm text-slate-600">
+            Carregando dados do Supabase...
+          </p>
+        )}
 
-        <nav className="my-5 flex flex-wrap gap-2" aria-label="Menu principal">
+        <nav
+          className="my-5 flex flex-wrap gap-2"
+          aria-label="Menu principal"
+        >
           {navigation.map((item) => (
-            <button key={item.id} type="button" onClick={() => setPage(item.id)}
-              className={page === item.id ? buttonClass : secondaryButtonClass}>{item.label}</button>
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setPage(item.id)}
+              className={
+                page === item.id ? buttonClass : secondaryButtonClass
+              }
+            >
+              {item.label}
+            </button>
           ))}
         </nav>
 
@@ -871,22 +1364,39 @@ export default function Home() {
           <>
             <section className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-xl font-bold">Novo registro de erro</h2>
-              <p className="mb-5 mt-1 text-sm text-slate-500">A diferença entre quantidade física e sistema é calculada nos relatórios.</p>
+              <p className="mb-5 mt-1 text-sm text-slate-500">
+                A diferença entre quantidade física e sistema é calculada nos
+                relatórios.
+              </p>
               <form onSubmit={addError}>
                 <ErrorFields value={errorForm} onChange={setErrorForm} />
-                <button className={`${buttonClass} mt-5`} type="submit">Adicionar ocorrência</button>
+                <button className={`${buttonClass} mt-5`} type="submit">
+                  Adicionar ocorrência
+                </button>
               </form>
             </section>
 
             {editingError && (
               <section className="mb-5 rounded-2xl border border-cyan-200 bg-white p-5 shadow-sm">
-                <h2 className="mb-4 text-xl font-bold">Editar registro de erro</h2>
+                <h2 className="mb-4 text-xl font-bold">
+                  Editar registro de erro
+                </h2>
                 <form onSubmit={saveErrorEdit}>
                   <ErrorFields value={editForm} onChange={setEditForm} />
                   <div className="mt-5 flex flex-wrap gap-2">
-                    <button className={buttonClass} type="submit">Salvar alterações</button>
-                    <button className={secondaryButtonClass} type="button"
-                      onClick={() => { setEditingError(null); setEditForm(emptyErrorForm); }}>Cancelar</button>
+                    <button className={buttonClass} type="submit">
+                      Salvar alterações
+                    </button>
+                    <button
+                      className={secondaryButtonClass}
+                      type="button"
+                      onClick={() => {
+                        setEditingError(null);
+                        setEditForm(emptyErrorForm);
+                      }}
+                    >
+                      Cancelar
+                    </button>
                   </div>
                 </form>
               </section>
@@ -895,17 +1405,35 @@ export default function Home() {
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-xl font-bold">Registros de erros</h2>
-                <button className={secondaryButtonClass} type="button" onClick={() => setRecordFilters({})}>Limpar filtros das colunas</button>
+                <button
+                  className={secondaryButtonClass}
+                  type="button"
+                  onClick={() => setRecordFilters({})}
+                >
+                  Limpar filtros das colunas
+                </button>
               </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1900px] text-left text-sm">
                   <thead className="bg-slate-100 text-xs uppercase text-slate-600">
                     <tr>
                       {recordColumns.map((column) => (
-                        <th key={column.key} className="p-2 align-top">
+                        <th
+                          key={column.key}
+                          className="p-2 align-top"
+                        >
                           {column.label}
-                          <FilterInput label={column.label} value={recordFilters[column.key] ?? ""}
-                            onChange={(value) => setRecordFilters((current) => ({ ...current, [column.key]: value }))} />
+                          <FilterInput
+                            label={column.label}
+                            value={recordFilters[column.key] ?? ""}
+                            onChange={(value) =>
+                              setRecordFilters((current) => ({
+                                ...current,
+                                [column.key]: value,
+                              }))
+                            }
+                          />
                         </th>
                       ))}
                       <th className="p-2 align-top">Ação</th>
@@ -916,30 +1444,59 @@ export default function Home() {
                       <tr key={item.id}>
                         {recordColumns.map((column) => (
                           <td key={column.key} className="p-2">
-                            {column.key === "status"
-                              ? <span className={statusClass(item.status)}>{item.status}</span>
-                              : column.key === "physical" || column.key === "system" || column.key === "difference"
-                                ? formatNumber(Number(column.value(item)))
-                                : column.value(item)}
+                            {column.key === "status" ? (
+                              <span className={statusClass(item.status)}>
+                                {item.status}
+                              </span>
+                            ) : column.numeric ? (
+                              formatNumber(Number(column.value(item)))
+                            ) : (
+                              column.value(item)
+                            )}
                           </td>
                         ))}
                         <td className="p-2">
                           <div className="flex flex-col items-start gap-2">
-                            <button type="button" className="font-semibold text-cyan-800 hover:underline"
-                              onClick={() => { setMessage(""); setEditingError(item); setEditForm(toErrorForm(item)); }}>Editar</button>
-                            <button type="button" className="font-semibold text-red-700 hover:underline"
-                              onClick={() => void removeError(item.id)}>Excluir</button>
+                            <button
+                              type="button"
+                              className="font-semibold text-cyan-800 hover:underline"
+                              onClick={() => {
+                                setMessage("");
+                                setEditingError(item);
+                                setEditForm(toErrorForm(item));
+                              }}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              className="font-semibold text-red-700 hover:underline"
+                              onClick={() => void removeError(item.id)}
+                            >
+                              Excluir
+                            </button>
                           </div>
                         </td>
                       </tr>
                     ))}
                     {filteredRecordErrors.length === 0 && (
-                      <tr><td colSpan={recordColumns.length + 1} className="p-6 text-center text-slate-500">Nenhum registro corresponde aos filtros.</td></tr>
+                      <tr>
+                        <td
+                          colSpan={recordColumns.length + 1}
+                          className="p-6 text-center text-slate-500"
+                        >
+                          Nenhum registro corresponde aos filtros.
+                        </td>
+                      </tr>
                     )}
                   </tbody>
                 </table>
               </div>
-              <p className="mt-3 text-xs text-slate-500">Exibindo {filteredRecordErrors.length} de {errors.length} registros. Os filtros de cada coluna aceitam texto, data ou número.</p>
+              <p className="mt-3 text-xs text-slate-500">
+                Exibindo {filteredRecordErrors.length} de {errors.length}{" "}
+                registros. Nas colunas numéricas, o filtro procura o valor
+                exato; por exemplo, 0 encontra somente registros com zero.
+              </p>
             </section>
           </>
         )}
@@ -949,57 +1506,169 @@ export default function Home() {
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="mb-4 text-xl font-bold">Dashboard de erros</h2>
               <div className="flex flex-wrap items-end gap-3">
-                <Field label="De"><input className={inputClass} type="date" value={errorFrom} onChange={(event) => setErrorFrom(event.target.value)} /></Field>
-                <Field label="Até"><input className={inputClass} type="date" value={errorTo} onChange={(event) => setErrorTo(event.target.value)} /></Field>
+                <Field label="De">
+                  <input
+                    className={inputClass}
+                    type="date"
+                    value={errorFrom}
+                    onChange={(event) => setErrorFrom(event.target.value)}
+                  />
+                </Field>
+                <Field label="Até">
+                  <input
+                    className={inputClass}
+                    type="date"
+                    value={errorTo}
+                    onChange={(event) => setErrorTo(event.target.value)}
+                  />
+                </Field>
                 <Field label="Tipo de erro">
-                  <select className={inputClass} value={errorTypeFilter} onChange={(event) => setErrorTypeFilter(event.target.value)}>
-                    <option value="">Todos os tipos</option>{errorTypes.map((type) => <option key={type}>{type}</option>)}
+                  <select
+                    className={inputClass}
+                    value={errorTypeFilter}
+                    onChange={(event) => setErrorTypeFilter(event.target.value)}
+                  >
+                    <option value="">Todos os tipos</option>
+                    {errorTypes.map((type) => (
+                      <option key={type}>{type}</option>
+                    ))}
                   </select>
                 </Field>
                 <Field label="Turno">
-                  <select className={inputClass} value={errorShiftFilter} onChange={(event) => setErrorShiftFilter(event.target.value)}>
-                    <option value="">Todos os turnos</option>{shifts.map((shift) => <option key={shift}>{shift}</option>)}
+                  <select
+                    className={inputClass}
+                    value={errorShiftFilter}
+                    onChange={(event) => setErrorShiftFilter(event.target.value)}
+                  >
+                    <option value="">Todos os turnos</option>
+                    {shifts.map((shift) => (
+                      <option key={shift}>{shift}</option>
+                    ))}
                   </select>
                 </Field>
                 <Field label="Status">
-                  <select className={inputClass} value={errorStatusFilter} onChange={(event) => setErrorStatusFilter(event.target.value)}>
-                    <option value="">Todos os status</option>{statuses.map((status) => <option key={status}>{status}</option>)}
+                  <select
+                    className={inputClass}
+                    value={errorStatusFilter}
+                    onChange={(event) =>
+                      setErrorStatusFilter(event.target.value)
+                    }
+                  >
+                    <option value="">Todos os status</option>
+                    {statuses.map((status) => (
+                      <option key={status}>{status}</option>
+                    ))}
                   </select>
                 </Field>
                 <Field label="Responsável">
-                  <input className={inputClass} value={errorResponsibleFilter} onChange={(event) => setErrorResponsibleFilter(event.target.value)} placeholder="Filtrar por nome" />
+                  <input
+                    className={inputClass}
+                    value={errorResponsibleFilter}
+                    onChange={(event) =>
+                      setErrorResponsibleFilter(event.target.value)
+                    }
+                    placeholder="Filtrar por nome"
+                  />
                 </Field>
-                <button className={secondaryButtonClass} type="button" onClick={() => {
-                  setErrorFrom(""); setErrorTo(""); setErrorTypeFilter(""); setErrorShiftFilter(""); setErrorStatusFilter(""); setErrorResponsibleFilter("");
-                }}>Limpar filtros</button>
+                <button
+                  className={secondaryButtonClass}
+                  type="button"
+                  onClick={() => {
+                    setErrorFrom("");
+                    setErrorTo("");
+                    setErrorTypeFilter("");
+                    setErrorShiftFilter("");
+                    setErrorStatusFilter("");
+                    setErrorResponsibleFilter("");
+                  }}
+                >
+                  Limpar filtros
+                </button>
               </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <SummaryCard label="Ocorrências" value={filteredErrors.length} />
-              <SummaryCard label="Pendentes" value={filteredErrors.filter((item) => item.status !== "Concluído").length} />
-              <SummaryCard label="Erros de endereçamento" value={filteredErrors.filter((item) => item.type === "Endereçamento").length} />
-              <SummaryCard label="Ajustes realizados" value={filteredErrors.filter((item) => item.adjustment === "Sim").length} />
+              <SummaryCard
+                label="Ocorrências"
+                value={filteredErrors.length}
+              />
+              <SummaryCard
+                label="Pendentes"
+                value={
+                  filteredErrors.filter(
+                    (item) => item.status !== "Concluído"
+                  ).length
+                }
+              />
+              <SummaryCard
+                label="Erros de endereçamento"
+                value={
+                  filteredErrors.filter(
+                    (item) => item.type === "Endereçamento"
+                  ).length
+                }
+              />
+              <SummaryCard
+                label="Ajustes realizados"
+                value={
+                  filteredErrors.filter(
+                    (item) => item.adjustment === "Sim"
+                  ).length
+                }
+              />
             </div>
 
+            <LineChart
+              title="Evolução das ocorrências por dia"
+              data={errorDailyData}
+              color="#0e7490"
+            />
+
             <div className="grid gap-5 lg:grid-cols-3">
-              <Ranking title="Ranking de responsáveis" rows={responsibleRanking} />
+              <Ranking
+                title="Ranking de responsáveis"
+                rows={responsibleRanking}
+              />
               <Ranking title="Ranking por turno" rows={shiftRanking} />
-              <Ranking title="Ranking por tipo de erro" rows={typeRanking} />
+              <Ranking
+                title="Ranking por tipo de erro"
+                rows={typeRanking}
+              />
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="mb-3 font-bold">Ocorrências por dia</h3>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[400px] text-left text-sm">
-                  <thead className="bg-slate-100 text-xs uppercase text-slate-600"><tr><th className="p-3">Data</th><th className="p-3">Ocorrências</th><th className="p-3">% do período</th></tr></thead>
+                  <thead className="bg-slate-100 text-xs uppercase text-slate-600">
+                    <tr>
+                      <th className="p-3">Data</th>
+                      <th className="p-3">Ocorrências</th>
+                      <th className="p-3">% do período</th>
+                    </tr>
+                  </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {Array.from(filteredErrors.reduce((map, item) => map.set(item.date, (map.get(item.date) ?? 0) + 1), new Map<string, number>()))
-                      .sort(([a], [b]) => a.localeCompare(b))
-                      .map(([date, count]) => (
-                        <tr key={date}><td className="p-3">{formatDate(date)}</td><td className="p-3">{count}</td><td className="p-3">{formatPercent(percentage(count, filteredErrors.length))}</td></tr>
-                      ))}
-                    {filteredErrors.length === 0 && <tr><td colSpan={3} className="p-5 text-center text-slate-500">Sem dados para os filtros selecionados.</td></tr>}
+                    {errorDailyData.map(({ label, value }) => (
+                      <tr key={label}>
+                        <td className="p-3">{formatDate(label)}</td>
+                        <td className="p-3">{value}</td>
+                        <td className="p-3">
+                          {formatPercent(
+                            percentage(value, filteredErrors.length)
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {errorDailyData.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={3}
+                          className="p-5 text-center text-slate-500"
+                        >
+                          Sem dados para os filtros selecionados.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1010,39 +1679,143 @@ export default function Home() {
         {page === "inventory" && (
           <>
             <section className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="text-xl font-bold">Novo fechamento diário de inventário</h2>
-              <p className="mb-5 mt-1 text-sm text-slate-500">Informe os totais do dia. A acuracidade e a execução são calculadas automaticamente.</p>
-              <form onSubmit={addInventory} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Field label="Data"><input className={inputClass} type="date" required value={inventoryForm.date} onChange={(event) => setInventoryForm({ ...inventoryForm, date: event.target.value })} /></Field>
-                {([
-                  ["Itens contados", "counted"], ["Itens sem divergência", "accurate"],
-                  ["Erros de movimentação", "movements"], ["Ajustes de estoque", "adjustments"],
-                  ["Contagens planejadas", "planned"], ["Contagens executadas", "executed"],
-                ] as const).map(([label, key]) => (
-                  <Field key={key} label={label}><input className={inputClass} type="number" min="0" step="1" required value={inventoryForm[key]} onChange={(event) => setInventoryForm({ ...inventoryForm, [key]: event.target.value })} /></Field>
+              <h2 className="text-xl font-bold">
+                Novo fechamento diário de inventário
+              </h2>
+              <p className="mb-5 mt-1 text-sm text-slate-500">
+                Informe os totais do dia. A acuracidade e a execução são
+                calculadas automaticamente.
+              </p>
+              <form
+                onSubmit={addInventory}
+                className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+              >
+                <Field label="Data">
+                  <input
+                    className={inputClass}
+                    type="date"
+                    required
+                    value={inventoryForm.date}
+                    onChange={(event) =>
+                      setInventoryForm({
+                        ...inventoryForm,
+                        date: event.target.value,
+                      })
+                    }
+                  />
+                </Field>
+                {(
+                  [
+                    ["Itens contados", "counted"],
+                    ["Itens sem divergência", "accurate"],
+                    ["Erros de movimentação", "movements"],
+                    ["Ajustes de estoque", "adjustments"],
+                    ["Contagens planejadas", "planned"],
+                    ["Contagens executadas", "executed"],
+                  ] as const
+                ).map(([label, key]) => (
+                  <Field key={key} label={label}>
+                    <input
+                      className={inputClass}
+                      type="number"
+                      min="0"
+                      step="1"
+                      required
+                      value={inventoryForm[key]}
+                      onChange={(event) =>
+                        setInventoryForm({
+                          ...inventoryForm,
+                          [key]: event.target.value,
+                        })
+                      }
+                    />
+                  </Field>
                 ))}
-                <Field label="Observações"><input className={inputClass} value={inventoryForm.notes} onChange={(event) => setInventoryForm({ ...inventoryForm, notes: event.target.value })} /></Field>
-                <div className="sm:col-span-2 lg:col-span-4"><button className={buttonClass} type="submit">Adicionar fechamento</button></div>
+                <Field label="Observações">
+                  <input
+                    className={inputClass}
+                    value={inventoryForm.notes}
+                    onChange={(event) =>
+                      setInventoryForm({
+                        ...inventoryForm,
+                        notes: event.target.value,
+                      })
+                    }
+                  />
+                </Field>
+                <div className="sm:col-span-2 lg:col-span-4">
+                  <button className={buttonClass} type="submit">
+                    Adicionar fechamento
+                  </button>
+                </div>
               </form>
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="mb-4 text-xl font-bold">Registros de inventário</h2>
+              <h2 className="mb-4 text-xl font-bold">
+                Registros de inventário
+              </h2>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1000px] text-left text-sm">
-                  <thead className="bg-slate-100 text-xs uppercase text-slate-600"><tr>
-                    <th className="p-3">Data</th><th className="p-3">Contados</th><th className="p-3">Sem divergência</th><th className="p-3">Acuracidade</th><th className="p-3">Erros movimentação</th><th className="p-3">Ajustes</th><th className="p-3">Planejadas</th><th className="p-3">Executadas</th><th className="p-3">Execução</th><th className="p-3">Ação</th>
-                  </tr></thead>
+                  <thead className="bg-slate-100 text-xs uppercase text-slate-600">
+                    <tr>
+                      <th className="p-3">Data</th>
+                      <th className="p-3">Contados</th>
+                      <th className="p-3">Sem divergência</th>
+                      <th className="p-3">Acuracidade</th>
+                      <th className="p-3">Erros movimentação</th>
+                      <th className="p-3">Ajustes</th>
+                      <th className="p-3">Planejadas</th>
+                      <th className="p-3">Executadas</th>
+                      <th className="p-3">Execução</th>
+                      <th className="p-3">Ação</th>
+                    </tr>
+                  </thead>
                   <tbody className="divide-y divide-slate-100">
                     {inventories.map((item) => (
                       <tr key={item.id}>
-                        <td className="p-3">{formatDate(item.date)}</td><td className="p-3">{formatNumber(item.counted)}</td><td className="p-3">{formatNumber(item.accurate)}</td>
-                        <td className="p-3">{formatPercent(percentage(item.accurate, item.counted))}</td><td className="p-3">{formatNumber(item.movements)}</td><td className="p-3">{formatNumber(item.adjustments)}</td>
-                        <td className="p-3">{formatNumber(item.planned)}</td><td className="p-3">{formatNumber(item.executed)}</td><td className="p-3">{formatPercent(percentage(item.executed, item.planned))}</td>
-                        <td className="p-3"><button type="button" className="font-semibold text-red-700 hover:underline" onClick={() => void removeInventory(item.id)}>Excluir</button></td>
+                        <td className="p-3">{formatDate(item.date)}</td>
+                        <td className="p-3">{formatNumber(item.counted)}</td>
+                        <td className="p-3">{formatNumber(item.accurate)}</td>
+                        <td className="p-3">
+                          {formatPercent(
+                            percentage(item.accurate, item.counted)
+                          )}
+                        </td>
+                        <td className="p-3">
+                          {formatNumber(item.movements)}
+                        </td>
+                        <td className="p-3">
+                          {formatNumber(item.adjustments)}
+                        </td>
+                        <td className="p-3">{formatNumber(item.planned)}</td>
+                        <td className="p-3">{formatNumber(item.executed)}</td>
+                        <td className="p-3">
+                          {formatPercent(
+                            percentage(item.executed, item.planned)
+                          )}
+                        </td>
+                        <td className="p-3">
+                          <button
+                            type="button"
+                            className="font-semibold text-red-700 hover:underline"
+                            onClick={() => void removeInventory(item.id)}
+                          >
+                            Excluir
+                          </button>
+                        </td>
                       </tr>
                     ))}
-                    {inventories.length === 0 && <tr><td colSpan={10} className="p-6 text-center text-slate-500">Nenhum inventário registrado.</td></tr>}
+                    {inventories.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={10}
+                          className="p-6 text-center text-slate-500"
+                        >
+                          Nenhum inventário registrado.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1053,49 +1826,239 @@ export default function Home() {
         {page === "inventoryDashboard" && (
           <section className="space-y-5">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="mb-4 text-xl font-bold">Dashboard de inventário</h2>
+              <h2 className="mb-4 text-xl font-bold">
+                Dashboard de inventário
+              </h2>
               <div className="flex flex-wrap items-end gap-3">
-                <Field label="De"><input className={inputClass} type="date" value={inventoryFrom} onChange={(event) => setInventoryFrom(event.target.value)} /></Field>
-                <Field label="Até"><input className={inputClass} type="date" value={inventoryTo} onChange={(event) => setInventoryTo(event.target.value)} /></Field>
-                <Field label="Acuracidade mínima (%)"><input className={inputClass} type="number" min="0" max="100" value={inventoryMinAccuracy} onChange={(event) => setInventoryMinAccuracy(event.target.value)} /></Field>
-                <Field label="Erros de movimentação (mín.)"><input className={inputClass} type="number" min="0" value={inventoryMinMovements} onChange={(event) => setInventoryMinMovements(event.target.value)} /></Field>
-                <Field label="Ajustes de estoque (mín.)"><input className={inputClass} type="number" min="0" value={inventoryMinAdjustments} onChange={(event) => setInventoryMinAdjustments(event.target.value)} /></Field>
-                <Field label="Execução mínima (%)"><input className={inputClass} type="number" min="0" value={inventoryMinExecution} onChange={(event) => setInventoryMinExecution(event.target.value)} /></Field>
-                <button className={secondaryButtonClass} type="button" onClick={() => {
-                  setInventoryFrom(""); setInventoryTo(""); setInventoryMinAccuracy(""); setInventoryMinMovements(""); setInventoryMinAdjustments(""); setInventoryMinExecution("");
-                }}>Limpar filtros</button>
+                <Field label="De">
+                  <input
+                    className={inputClass}
+                    type="date"
+                    value={inventoryFrom}
+                    onChange={(event) => setInventoryFrom(event.target.value)}
+                  />
+                </Field>
+                <Field label="Até">
+                  <input
+                    className={inputClass}
+                    type="date"
+                    value={inventoryTo}
+                    onChange={(event) => setInventoryTo(event.target.value)}
+                  />
+                </Field>
+                <Field label="Acuracidade mínima (%)">
+                  <input
+                    className={inputClass}
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={inventoryMinAccuracy}
+                    onChange={(event) =>
+                      setInventoryMinAccuracy(event.target.value)
+                    }
+                  />
+                </Field>
+                <Field label="Erros de movimentação (mín.)">
+                  <input
+                    className={inputClass}
+                    type="number"
+                    min="0"
+                    value={inventoryMinMovements}
+                    onChange={(event) =>
+                      setInventoryMinMovements(event.target.value)
+                    }
+                  />
+                </Field>
+                <Field label="Ajustes de estoque (mín.)">
+                  <input
+                    className={inputClass}
+                    type="number"
+                    min="0"
+                    value={inventoryMinAdjustments}
+                    onChange={(event) =>
+                      setInventoryMinAdjustments(event.target.value)
+                    }
+                  />
+                </Field>
+                <Field label="Execução mínima (%)">
+                  <input
+                    className={inputClass}
+                    type="number"
+                    min="0"
+                    value={inventoryMinExecution}
+                    onChange={(event) =>
+                      setInventoryMinExecution(event.target.value)
+                    }
+                  />
+                </Field>
+                <button
+                  className={secondaryButtonClass}
+                  type="button"
+                  onClick={() => {
+                    setInventoryFrom("");
+                    setInventoryTo("");
+                    setInventoryMinAccuracy("");
+                    setInventoryMinMovements("");
+                    setInventoryMinAdjustments("");
+                    setInventoryMinExecution("");
+                  }}
+                >
+                  Limpar filtros
+                </button>
               </div>
             </div>
 
             {(() => {
-              const counted = filteredInventories.reduce((sum, item) => sum + item.counted, 0);
-              const accurate = filteredInventories.reduce((sum, item) => sum + item.accurate, 0);
-              const planned = filteredInventories.reduce((sum, item) => sum + item.planned, 0);
-              const executed = filteredInventories.reduce((sum, item) => sum + item.executed, 0);
-              const movements = filteredInventories.reduce((sum, item) => sum + item.movements, 0);
-              const adjustments = filteredInventories.reduce((sum, item) => sum + item.adjustments, 0);
+              const counted = filteredInventories.reduce(
+                (sum, item) => sum + item.counted,
+                0
+              );
+              const accurate = filteredInventories.reduce(
+                (sum, item) => sum + item.accurate,
+                0
+              );
+              const planned = filteredInventories.reduce(
+                (sum, item) => sum + item.planned,
+                0
+              );
+              const executed = filteredInventories.reduce(
+                (sum, item) => sum + item.executed,
+                0
+              );
+              const movements = filteredInventories.reduce(
+                (sum, item) => sum + item.movements,
+                0
+              );
+              const adjustments = filteredInventories.reduce(
+                (sum, item) => sum + item.adjustments,
+                0
+              );
+
               return (
                 <>
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <SummaryCard label="Acuracidade do estoque" value={formatPercent(percentage(accurate, counted))} />
-                    <SummaryCard label="Execução de contagens" value={formatPercent(percentage(executed, planned))} />
-                    <SummaryCard label="Erros de movimentação" value={formatNumber(movements)} />
-                    <SummaryCard label="Ajustes de estoque" value={formatNumber(adjustments)} />
+                    <SummaryCard
+                      label="Acuracidade do estoque"
+                      value={formatPercent(percentage(accurate, counted))}
+                    />
+                    <SummaryCard
+                      label="Execução de contagens"
+                      value={formatPercent(percentage(executed, planned))}
+                    />
+                    <SummaryCard
+                      label="Erros de movimentação"
+                      value={formatNumber(movements)}
+                    />
+                    <SummaryCard
+                      label="Ajustes de estoque"
+                      value={formatNumber(adjustments)}
+                    />
                   </div>
+
+                  <div className="grid gap-5 lg:grid-cols-2">
+                    <LineChart
+                      title="Evolução diária da acuracidade do estoque"
+                      data={inventoryDailyData.map((item) => ({
+                        label: item.date,
+                        value: item.accuracyPercent,
+                      }))}
+                      formatValue={formatPercent}
+                      color="#4f46e5"
+                    />
+                    <LineChart
+                      title="Evolução diária da execução de contagens"
+                      data={inventoryDailyData.map((item) => ({
+                        label: item.date,
+                        value: item.executionPercent,
+                      }))}
+                      formatValue={formatPercent}
+                      color="#7c3aed"
+                    />
+                    <LineChart
+                      title="Evolução diária dos erros de movimentação"
+                      data={inventoryDailyData.map((item) => ({
+                        label: item.date,
+                        value: item.movements,
+                      }))}
+                      color="#e11d48"
+                    />
+                    <LineChart
+                      title="Evolução diária dos ajustes de estoque"
+                      data={inventoryDailyData.map((item) => ({
+                        label: item.date,
+                        value: item.adjustments,
+                      }))}
+                      color="#d97706"
+                    />
+                  </div>
+
                   <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <h3 className="mb-3 font-bold">Resumo do período</h3>
-                    <p className="text-sm text-slate-700">{formatNumber(accurate)} itens sem divergência de {formatNumber(counted)} contados. {formatNumber(executed)} contagens executadas de {formatNumber(planned)} planejadas.</p>
+                    <p className="text-sm text-slate-700">
+                      {formatNumber(accurate)} itens sem divergência de{" "}
+                      {formatNumber(counted)} contados.{" "}
+                      {formatNumber(executed)} contagens executadas de{" "}
+                      {formatNumber(planned)} planejadas.
+                    </p>
                   </div>
+
                   <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <h3 className="mb-3 font-bold">Acompanhamento por dia</h3>
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[600px] text-left text-sm">
-                        <thead className="bg-slate-100 text-xs uppercase text-slate-600"><tr><th className="p-3">Data</th><th className="p-3">Contados</th><th className="p-3">Sem divergência</th><th className="p-3">Acuracidade</th><th className="p-3">Planejadas</th><th className="p-3">Executadas</th><th className="p-3">Execução</th></tr></thead>
+                      <table className="w-full min-w-[800px] text-left text-sm">
+                        <thead className="bg-slate-100 text-xs uppercase text-slate-600">
+                          <tr>
+                            <th className="p-3">Data</th>
+                            <th className="p-3">Contados</th>
+                            <th className="p-3">Sem divergência</th>
+                            <th className="p-3">Acuracidade</th>
+                            <th className="p-3">Planejadas</th>
+                            <th className="p-3">Executadas</th>
+                            <th className="p-3">Execução</th>
+                            <th className="p-3">Erros movimentação</th>
+                            <th className="p-3">Ajustes</th>
+                          </tr>
+                        </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {filteredInventories.map((item) => (
-                            <tr key={item.id}><td className="p-3">{formatDate(item.date)}</td><td className="p-3">{formatNumber(item.counted)}</td><td className="p-3">{formatNumber(item.accurate)}</td><td className="p-3">{formatPercent(percentage(item.accurate, item.counted))}</td><td className="p-3">{formatNumber(item.planned)}</td><td className="p-3">{formatNumber(item.executed)}</td><td className="p-3">{formatPercent(percentage(item.executed, item.planned))}</td></tr>
+                          {inventoryDailyData.map((item) => (
+                            <tr key={item.date}>
+                              <td className="p-3">{formatDate(item.date)}</td>
+                              <td className="p-3">
+                                {formatNumber(item.counted)}
+                              </td>
+                              <td className="p-3">
+                                {formatNumber(item.accurate)}
+                              </td>
+                              <td className="p-3">
+                                {formatPercent(item.accuracyPercent)}
+                              </td>
+                              <td className="p-3">
+                                {formatNumber(item.planned)}
+                              </td>
+                              <td className="p-3">
+                                {formatNumber(item.executed)}
+                              </td>
+                              <td className="p-3">
+                                {formatPercent(item.executionPercent)}
+                              </td>
+                              <td className="p-3">
+                                {formatNumber(item.movements)}
+                              </td>
+                              <td className="p-3">
+                                {formatNumber(item.adjustments)}
+                              </td>
+                            </tr>
                           ))}
-                          {filteredInventories.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-slate-500">Sem dados para o período selecionado.</td></tr>}
+                          {inventoryDailyData.length === 0 && (
+                            <tr>
+                              <td
+                                colSpan={9}
+                                className="p-6 text-center text-slate-500"
+                              >
+                                Sem dados para o período selecionado.
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -1109,56 +2072,242 @@ export default function Home() {
         {page === "base" && (
           <section className="space-y-5">
             <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-sm text-cyan-900">
-              Os registros desta tela são carregados do banco Supabase e compartilhados com os usuários autorizados.
+              Os registros desta tela são carregados do banco Supabase e
+              compartilhados com os usuários autorizados.
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div><h2 className="text-xl font-bold">Base consolidada de erros</h2><p className="text-sm text-slate-500">Uma linha para cada ocorrência registrada.</p></div>
+                <div>
+                  <h2 className="text-xl font-bold">
+                    Base consolidada de erros
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    Uma linha para cada ocorrência registrada.
+                  </p>
+                </div>
                 <div className="flex flex-wrap gap-2">
-                  <button className={secondaryButtonClass} type="button" onClick={() => setBaseErrorFilters({})}>Limpar filtros</button>
-                  <button className={secondaryButtonClass} type="button" onClick={() => downloadCsv("base-erros-dmp.csv", [
-                    ["Data", "Rua", "Prédio", "Nível", "Apartamento", "Código", "Físico", "Sistema", "Diferença", "Tipo", "Produtos no endereço", "Ajuste", "Turno", "Responsável", "Status", "Observações"],
-                    ...errors.map((item) => [formatDate(item.date), item.street, item.building, item.level, item.apartment, item.code, item.physical, item.system, item.physical - item.system, item.type, item.productCodes, item.adjustment, item.shift, item.responsible, item.status, item.notes]),
-                  ])}>Exportar erros CSV</button>
+                  <button
+                    className={secondaryButtonClass}
+                    type="button"
+                    onClick={() => setBaseErrorFilters({})}
+                  >
+                    Limpar filtros
+                  </button>
+                  <button
+                    className={secondaryButtonClass}
+                    type="button"
+                    onClick={() =>
+                      downloadCsv("base-erros-dmp.csv", [
+                        [
+                          "Data",
+                          "Rua",
+                          "Prédio",
+                          "Nível",
+                          "Apartamento",
+                          "Código",
+                          "Físico",
+                          "Sistema",
+                          "Diferença",
+                          "Tipo",
+                          "Produtos no endereço",
+                          "Ajuste",
+                          "Turno",
+                          "Responsável",
+                          "Status",
+                          "Observações",
+                        ],
+                        ...errors.map((item) => [
+                          formatDate(item.date),
+                          item.street,
+                          item.building,
+                          item.level,
+                          item.apartment,
+                          item.code,
+                          item.physical,
+                          item.system,
+                          item.physical - item.system,
+                          item.type,
+                          item.productCodes,
+                          item.adjustment,
+                          item.shift,
+                          item.responsible,
+                          item.status,
+                          item.notes,
+                        ]),
+                      ])
+                    }
+                  >
+                    Exportar erros CSV
+                  </button>
                 </div>
               </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1900px] text-left text-sm">
-                  <thead className="bg-slate-100 text-xs uppercase text-slate-600"><tr>
-                    {recordColumns.map((column) => <th key={column.key} className="p-2 align-top">{column.label}<FilterInput label={column.label} value={baseErrorFilters[column.key] ?? ""} onChange={(value) => setBaseErrorFilters((current) => ({ ...current, [column.key]: value }))} /></th>)}
-                  </tr></thead>
+                  <thead className="bg-slate-100 text-xs uppercase text-slate-600">
+                    <tr>
+                      {recordColumns.map((column) => (
+                        <th
+                          key={column.key}
+                          className="p-2 align-top"
+                        >
+                          {column.label}
+                          <FilterInput
+                            label={column.label}
+                            value={baseErrorFilters[column.key] ?? ""}
+                            onChange={(value) =>
+                              setBaseErrorFilters((current) => ({
+                                ...current,
+                                [column.key]: value,
+                              }))
+                            }
+                          />
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredBaseErrors.map((item) => (
                       <tr key={item.id}>
-                        {recordColumns.map((column) => <td key={column.key} className="p-2">
-                          {column.key === "status" ? <span className={statusClass(item.status)}>{item.status}</span>
-                            : column.key === "physical" || column.key === "system" || column.key === "difference" ? formatNumber(Number(column.value(item)))
-                              : column.value(item)}
-                        </td>)}
+                        {recordColumns.map((column) => (
+                          <td key={column.key} className="p-2">
+                            {column.key === "status" ? (
+                              <span className={statusClass(item.status)}>
+                                {item.status}
+                              </span>
+                            ) : column.numeric ? (
+                              formatNumber(Number(column.value(item)))
+                            ) : (
+                              column.value(item)
+                            )}
+                          </td>
+                        ))}
                       </tr>
                     ))}
-                    {filteredBaseErrors.length === 0 && <tr><td colSpan={recordColumns.length} className="p-6 text-center text-slate-500">Nenhum registro corresponde aos filtros.</td></tr>}
+                    {filteredBaseErrors.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={recordColumns.length}
+                          className="p-6 text-center text-slate-500"
+                        >
+                          Nenhum registro corresponde aos filtros.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
-              <p className="mt-3 text-xs text-slate-500">Exibindo {filteredBaseErrors.length} de {errors.length} registros.</p>
+              <p className="mt-3 text-xs text-slate-500">
+                Exibindo {filteredBaseErrors.length} de {errors.length}{" "}
+                registros. Nas colunas numéricas, o filtro procura o valor
+                exato; por exemplo, 0 encontra somente registros com zero.
+              </p>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div><h2 className="text-xl font-bold">Base consolidada de inventário</h2><p className="text-sm text-slate-500">Fechamentos diários e indicadores de contagem.</p></div>
-                <button className={secondaryButtonClass} type="button" onClick={() => downloadCsv("base-inventario-dmp.csv", [
-                  ["Data", "Itens contados", "Sem divergência", "Acuracidade", "Erros movimentação", "Ajustes", "Planejadas", "Executadas", "Execução", "Observações"],
-                  ...inventories.map((item) => [formatDate(item.date), item.counted, item.accurate, formatPercent(percentage(item.accurate, item.counted)), item.movements, item.adjustments, item.planned, item.executed, formatPercent(percentage(item.executed, item.planned)), item.notes]),
-                ])}>Exportar inventário CSV</button>
+                <div>
+                  <h2 className="text-xl font-bold">
+                    Base consolidada de inventário
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    Fechamentos diários e indicadores de contagem.
+                  </p>
+                </div>
+                <button
+                  className={secondaryButtonClass}
+                  type="button"
+                  onClick={() =>
+                    downloadCsv("base-inventario-dmp.csv", [
+                      [
+                        "Data",
+                        "Itens contados",
+                        "Sem divergência",
+                        "Acuracidade",
+                        "Erros movimentação",
+                        "Ajustes",
+                        "Planejadas",
+                        "Executadas",
+                        "Execução",
+                        "Observações",
+                      ],
+                      ...inventories.map((item) => [
+                        formatDate(item.date),
+                        item.counted,
+                        item.accurate,
+                        formatPercent(
+                          percentage(item.accurate, item.counted)
+                        ),
+                        item.movements,
+                        item.adjustments,
+                        item.planned,
+                        item.executed,
+                        formatPercent(
+                          percentage(item.executed, item.planned)
+                        ),
+                        item.notes,
+                      ]),
+                    ])
+                  }
+                >
+                  Exportar inventário CSV
+                </button>
               </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1000px] text-left text-sm">
-                  <thead className="bg-slate-100 text-xs uppercase text-slate-600"><tr><th className="p-3">Data</th><th className="p-3">Contados</th><th className="p-3">Sem divergência</th><th className="p-3">Acuracidade</th><th className="p-3">Erros movimentação</th><th className="p-3">Ajustes</th><th className="p-3">Planejadas</th><th className="p-3">Executadas</th><th className="p-3">Execução</th><th className="p-3">Observações</th></tr></thead>
+                  <thead className="bg-slate-100 text-xs uppercase text-slate-600">
+                    <tr>
+                      <th className="p-3">Data</th>
+                      <th className="p-3">Contados</th>
+                      <th className="p-3">Sem divergência</th>
+                      <th className="p-3">Acuracidade</th>
+                      <th className="p-3">Erros movimentação</th>
+                      <th className="p-3">Ajustes</th>
+                      <th className="p-3">Planejadas</th>
+                      <th className="p-3">Executadas</th>
+                      <th className="p-3">Execução</th>
+                      <th className="p-3">Observações</th>
+                    </tr>
+                  </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {inventories.map((item) => <tr key={item.id}><td className="p-3">{formatDate(item.date)}</td><td className="p-3">{formatNumber(item.counted)}</td><td className="p-3">{formatNumber(item.accurate)}</td><td className="p-3">{formatPercent(percentage(item.accurate, item.counted))}</td><td className="p-3">{formatNumber(item.movements)}</td><td className="p-3">{formatNumber(item.adjustments)}</td><td className="p-3">{formatNumber(item.planned)}</td><td className="p-3">{formatNumber(item.executed)}</td><td className="p-3">{formatPercent(percentage(item.executed, item.planned))}</td><td className="p-3">{item.notes}</td></tr>)}
-                    {inventories.length === 0 && <tr><td colSpan={10} className="p-6 text-center text-slate-500">Nenhum inventário registrado.</td></tr>}
+                    {inventories.map((item) => (
+                      <tr key={item.id}>
+                        <td className="p-3">{formatDate(item.date)}</td>
+                        <td className="p-3">{formatNumber(item.counted)}</td>
+                        <td className="p-3">{formatNumber(item.accurate)}</td>
+                        <td className="p-3">
+                          {formatPercent(
+                            percentage(item.accurate, item.counted)
+                          )}
+                        </td>
+                        <td className="p-3">
+                          {formatNumber(item.movements)}
+                        </td>
+                        <td className="p-3">
+                          {formatNumber(item.adjustments)}
+                        </td>
+                        <td className="p-3">{formatNumber(item.planned)}</td>
+                        <td className="p-3">{formatNumber(item.executed)}</td>
+                        <td className="p-3">
+                          {formatPercent(
+                            percentage(item.executed, item.planned)
+                          )}
+                        </td>
+                        <td className="p-3">{item.notes}</td>
+                      </tr>
+                    ))}
+                    {inventories.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={10}
+                          className="p-6 text-center text-slate-500"
+                        >
+                          Nenhum inventário registrado.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1166,7 +2315,9 @@ export default function Home() {
           </section>
         )}
 
-        <p className="mt-5 text-center text-xs text-slate-500">Controle de erros, endereçamento e inventários · DMP</p>
+        <p className="mt-5 text-center text-xs text-slate-500">
+          Controle de erros, endereçamento e inventários · DMP
+        </p>
       </div>
     </main>
   );
